@@ -1,14 +1,7 @@
 package com.insightflow.dto;
 
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
-import lombok.Getter;
-import lombok.Setter;
-
-@Getter
-@Setter
+// Soft delete is handled via path variable only; no request body required.
+// Kept for potential future use (e.g., reason for deletion).
 public class DeleteProjectRequest {
-
-    @Enumerated(EnumType.STRING)
-    private Integer projectStatus;
 }
+
