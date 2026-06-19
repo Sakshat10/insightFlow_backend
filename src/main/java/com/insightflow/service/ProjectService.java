@@ -1,90 +1,290 @@
 package com.insightflow.service;
-import java.time.LocalDateTime;
-import java.util.List;
 
-import org.springframework.stereotype.Service;
-
+import com.insightflow.constants.AppConstants;
 import com.insightflow.constants.ProjectConstants;
-import com.insightflow.dto.CreateProjectRequest;
-import com.insightflow.dto.UpdateProjectRequest;
+import com.insightflow.dto.*;
 import com.insightflow.entity.Project;
+import com.insightflow.entity.User;
+import com.insightflow.exception.ForbiddenException;
+import com.insightflow.exception.ResourceNotFoundException;
+import com.insightflow.repository.EventRepository;
+import com.insightflow.repository.PageViewRepository;
 import com.insightflow.repository.ProjectRepository;
+import com.insightflow.repository.SessionRepository;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.*;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
+import java.security.SecureRandom;
+import java.util.HexFormat;
+
+@Slf4j
 @Service
 public class ProjectService {
 
     private final ProjectRepository projectRepository;
+    private final SessionRepository sessionRepository;
+    private final PageViewRepository pageViewRepository;
+    private final EventRepository eventRepository;
 
-    public ProjectService(ProjectRepository projectRepository) {
+    public ProjectService(ProjectRepository projectRepository,
+                          SessionRepository sessionRepository,
+                          PageViewRepository pageViewRepository,
+                          EventRepository eventRepository) {
         this.projectRepository = projectRepository;
+        this.sessionRepository = sessionRepository;
+        this.pageViewRepository = pageViewRepository;
+        this.eventRepository = eventRepository;
     }
 
-    public void createProject(CreateProjectRequest request) {
+    @Transactional
+    public ProjectResponse createProject(CreateProjectRequest request, User currentUser) {
 
-        Project project = new Project();
+        String trackingKey = generateTrackingKey();
 
-        project.setProjectName(request.getProjectName());
-        project.setDomain(request.getDomain());
-        project.setUserId(1);
-        project.setProjectStatus(ProjectConstants.ACTIVE);
-        project.setTrackingKey("trk_1231");
+        Project project = Project.builder()
+                .userId(currentUser.getId())
+                .projectName(request.getProjectName())
+                .domain(request.getDomain())
+                .projectStatus(ProjectConstants.ACTIVE)
+                .trackingKey(trackingKey)
+                .build();
 
-        project.setCreatedAt(LocalDateTime.now());
-        project.setUpdatedAt(LocalDateTime.now());
+        project = projectRepository.save(project);
 
-        projectRepository.save(project);
-        
-        
+        log.info(
+                "Project created: {} by user {}",
+                project.getId(),
+                currentUser.getUsername()
+        );
+
+        return ProjectResponse.from(project);
     }
 
+    public PagedResponse<ProjectResponse> getAllProjects(Integer projectStatus,
+                                                         int page,
+                                                         int size,
+                                                         String sortBy,
+                                                         String sortDir,
+                                                         User currentUser) {
 
-    public List<Project> getAllProjects(Integer projectStatus) {
-        if(projectStatus == null){
-            return projectRepository.findAll();
+        Sort sort = sortDir.equalsIgnoreCase("asc")
+                ? Sort.by(sortBy).ascending()
+                : Sort.by(sortBy).descending();
+
+        Pageable pageable = PageRequest.of(
+                page,
+                Math.min(size, AppConstants.MAX_PAGE_SIZE),
+                sort
+        );
+
+        Page<Project> projectPage;
+
+        if (projectStatus != null) {
+            projectPage = projectRepository.findByUserIdAndProjectStatus(
+                    currentUser.getId(),
+                    projectStatus,
+                    pageable
+            );
+        } else {
+            projectPage = projectRepository.findByUserId(
+                    currentUser.getId(),
+                    pageable
+            );
         }
-        return projectRepository.findByProjectStatus(projectStatus);
+
+        return PagedResponse.of(
+                projectPage.map(ProjectResponse::from)
+        );
     }
 
-    public Project getProjectById(Integer id){
-        return projectRepository.findById(id).orElse(null);
+    public ProjectResponse getProjectById(Integer id, User currentUser) {
+
+        Project project = findProjectById(id);
+
+        assertOwnership(project, currentUser);
+
+        return ProjectResponse.from(project);
     }
 
-    public Project updateProject(Integer id, UpdateProjectRequest request){
+    @Transactional
+    public ProjectResponse updateProject(Integer id,
+                                         UpdateProjectRequest request,
+                                         User currentUser) {
 
-        Project project = projectRepository.findById(id).orElse(null);
+        Project project = findProjectById(id);
 
-        if (project == null){
-            return null;
-        }
+        assertOwnership(project, currentUser);
 
-        if (request.getProjectName() != null){
+        if (StringUtils.hasText(request.getProjectName())) {
             project.setProjectName(request.getProjectName());
         }
 
-        if (request.getDomain() != null){
+        if (request.getDomain() != null) {
             project.setDomain(request.getDomain());
         }
 
-        if (request.getProjectStatus() != null){
+        if (request.getProjectStatus() != null) {
             project.setProjectStatus(request.getProjectStatus());
         }
 
-        return projectRepository.save(project);
+        project = projectRepository.save(project);
 
+        log.info(
+                "Project {} updated by user {}",
+                id,
+                currentUser.getUsername()
+        );
+
+        return ProjectResponse.from(project);
     }
 
-    
-    public Project deleteProject(Integer id){
-        Project project = projectRepository.findById(id).orElse(null);
+    @Transactional
+    public ProjectResponse deleteProject(Integer id, User currentUser) {
 
-        if(project == null){
-            return null;
-        }
+        Project project = findProjectById(id);
+
+        assertOwnership(project, currentUser);
 
         project.setProjectStatus(ProjectConstants.INACTIVE);
-        
-        return projectRepository.save(project);
 
+        project = projectRepository.save(project);
+
+        log.info(
+                "Project {} deactivated by user {}",
+                id,
+                currentUser.getUsername()
+        );
+
+        return ProjectResponse.from(project);
     }
 
+    @Transactional
+    public ProjectResponse restoreProject(Integer id, User currentUser) {
+
+        Project project = projectRepository.findById(id)
+                .orElseThrow(() ->
+                        new ResourceNotFoundException(
+                                "Project",
+                                "id",
+                                id
+                        ));
+
+        assertOwnership(project, currentUser);
+
+        project.setProjectStatus(ProjectConstants.ACTIVE);
+
+        project = projectRepository.save(project);
+
+        log.info(
+                "Project {} restored by user {}",
+                id,
+                currentUser.getUsername()
+        );
+
+        return ProjectResponse.from(project);
+    }
+
+    public ProjectStatsResponse getProjectStats(User currentUser) {
+
+        long totalProjects =
+                projectRepository.countByUserId(currentUser.getId());
+
+        long activeProjects =
+                projectRepository.countByUserIdAndProjectStatus(
+                        currentUser.getId(),
+                        ProjectConstants.ACTIVE
+                );
+
+        long inactiveProjects =
+                projectRepository.countByUserIdAndProjectStatus(
+                        currentUser.getId(),
+                        ProjectConstants.INACTIVE
+                );
+
+        long totalPageViews =
+                projectRepository.findByUserId(
+                                currentUser.getId(),
+                                Pageable.unpaged()
+                        )
+                        .stream()
+                        .mapToLong(p ->
+                                pageViewRepository.countByProjectId(p.getId()))
+                        .sum();
+
+        long totalSessions =
+                projectRepository.findByUserId(
+                                currentUser.getId(),
+                                Pageable.unpaged()
+                        )
+                        .stream()
+                        .mapToLong(p ->
+                                sessionRepository.countByProjectId(p.getId()))
+                        .sum();
+
+        long totalEvents =
+                projectRepository.findByUserId(
+                                currentUser.getId(),
+                                Pageable.unpaged()
+                        )
+                        .stream()
+                        .mapToLong(p ->
+                                eventRepository.countByProjectId(p.getId()))
+                        .sum();
+
+        return ProjectStatsResponse.builder()
+                .totalProjects(totalProjects)
+                .activeProjects(activeProjects)
+                .inactiveProjects(inactiveProjects)
+                .totalPageViews(totalPageViews)
+                .totalSessions(totalSessions)
+                .totalEvents(totalEvents)
+                .build();
+    }
+
+    private Project findProjectById(Integer id) {
+
+        return projectRepository.findById(id)
+                .orElseThrow(() ->
+                        new ResourceNotFoundException(
+                                "Project",
+                                "id",
+                                id
+                        ));
+    }
+
+    private void assertOwnership(Project project, User currentUser) {
+
+        if (!project.getUserId().equals(currentUser.getId())) {
+            throw new ForbiddenException(
+                    "You do not have permission to access this project"
+            );
+        }
+    }
+
+    private String generateTrackingKey() {
+
+        SecureRandom random = new SecureRandom();
+
+        byte[] bytes = new byte[16];
+
+        random.nextBytes(bytes);
+
+        String key =
+                AppConstants.TOKEN_PREFIX +
+                        HexFormat.of().formatHex(bytes);
+
+        while (projectRepository.existsByTrackingKey(key)) {
+
+            random.nextBytes(bytes);
+
+            key =
+                    AppConstants.TOKEN_PREFIX +
+                            HexFormat.of().formatHex(bytes);
+        }
+
+        return key;
+    }
 }
