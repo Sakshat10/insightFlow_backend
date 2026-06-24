@@ -12,7 +12,6 @@ public class SessionResponse {
 
     private final Long id;
     private final Integer projectId;
-    private final String trackingKey;
     private final String sessionId;
     private final String ipAddress;
     private final String country;
@@ -24,7 +23,6 @@ public class SessionResponse {
     private final LocalDateTime startedAt;
     private final LocalDateTime endedAt;
     private final Integer duration;
-    private final Integer pageViewCount;
     private final Boolean isBounce;
     private final LocalDateTime createdAt;
 
@@ -32,7 +30,6 @@ public class SessionResponse {
         return SessionResponse.builder()
                 .id(session.getId())
                 .projectId(session.getProjectId())
-                .trackingKey(session.getTrackingKey())
                 .sessionId(session.getSessionId())
                 .ipAddress(session.getIpAddress())
                 .country(session.getCountry())
@@ -44,7 +41,6 @@ public class SessionResponse {
                 .startedAt(session.getStartedAt())
                 .endedAt(session.getEndedAt())
                 .duration(session.getDuration())
-                .pageViewCount(session.getPageViewCount())
                 .isBounce(session.getIsBounce())
                 .createdAt(session.getCreatedAt())
                 .build();
