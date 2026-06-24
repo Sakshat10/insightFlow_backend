@@ -19,8 +19,6 @@ public class CreateSessionRequest {
     @Size(max = 45)
     private String ipAddress;
 
-    private String userAgent;
-
     @Size(max = 100)
     private String country;
 
