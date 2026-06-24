@@ -15,8 +15,7 @@ import java.time.LocalDateTime;
     name = "sessions",
     indexes = {
         @Index(name = "idx_sessions_project_id", columnList = "project_id"),
-        @Index(name = "idx_sessions_tracking_key", columnList = "tracking_key"),
-        @Index(name = "idx_sessions_session_id", columnList = "session_id"),
+        @Index(name = "idx_sessions_visitor_id", columnList = "visitor_id"),
         @Index(name = "idx_sessions_started_at", columnList = "started_at")
     }
 )
@@ -29,17 +28,11 @@ public class Session extends BaseEntity {
     @Column(name = "project_id", nullable = false)
     private Integer projectId;
 
-    @Column(name = "tracking_key", nullable = false, length = 64)
-    private String trackingKey;
-
-    @Column(name = "session_id", nullable = false, unique = true, length = 128)
+    @Column(name = "visitor_id", nullable = false, unique = true, length = 255)
     private String sessionId;
 
     @Column(name = "ip_address", length = 45)
     private String ipAddress;
-
-    @Column(name = "user_agent", columnDefinition = "TEXT")
-    private String userAgent;
 
     @Column(name = "country", length = 100)
     private String country;
@@ -67,10 +60,6 @@ public class Session extends BaseEntity {
 
     @Column(name = "duration")
     private Integer duration;
-
-    @Column(name = "page_view_count")
-    @Builder.Default
-    private Integer pageViewCount = 0;
 
     @Column(name = "is_bounce")
     @Builder.Default
