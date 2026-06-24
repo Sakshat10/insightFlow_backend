@@ -65,4 +65,22 @@ public class UserService {
         userRepository.save(user);
         log.info("User {} soft-deleted their account", user.getUsername());
     }
+
+    @Transactional
+public UserResponse restoreUser(Integer id) {
+
+    User user = userRepository.findById(id)
+            .orElseThrow(() ->
+                    new ResourceNotFoundException(
+                            "User",
+                            "id",
+                            id
+                    ));
+
+    user.setIsDeleted(false);
+
+    user = userRepository.save(user);
+
+    return UserResponse.from(user);
+}
 }
