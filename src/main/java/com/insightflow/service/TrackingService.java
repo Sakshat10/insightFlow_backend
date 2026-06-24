@@ -71,20 +71,16 @@ if (!project.getProjectStatus().equals(ProjectConstants.ACTIVE)) {
         String deviceType = detectDeviceType(userAgent);
         String browser = detectBrowser(userAgent);
 
-        Session session = Session.builder()
-                .projectId(project.getId())
-                .trackingKey(req.getTrackingKey())
-                .sessionId(req.getSessionId())
-                .ipAddress(ipAddress)
-                .userAgent(userAgent)
-                .deviceType(deviceType)
-                .browser(browser)
-                .referrer(req.getReferrer())
-                .startedAt(LocalDateTime.now())
-                .pageViewCount(0)
-                .isBounce(true)
-                .build();
-
+      Session session = Session.builder()
+        .projectId(project.getId())
+        .sessionId(req.getSessionId())
+        .ipAddress(ipAddress)
+        .deviceType(deviceType)
+        .browser(browser)
+        .referrer(req.getReferrer())
+        .startedAt(LocalDateTime.now())
+        .isBounce(true)
+        .build();
         sessionRepository.save(session);
         log.debug("Session started: {} for project {}", req.getSessionId(), project.getId());
 
@@ -96,9 +92,9 @@ if (!project.getProjectStatus().equals(ProjectConstants.ACTIVE)) {
 
     @Transactional
     public void trackSessionEnd(TrackSessionEndRequest req) {
-        Session session = sessionRepository
-                .findBySessionIdAndTrackingKey(req.getSessionId(), req.getTrackingKey())
-                .orElse(null);
+       Session session = sessionRepository
+        .findBySessionId(req.getSessionId())
+        .orElse(null);
 
         if (session == null) {
             log.warn("Session not found for end event: {}", req.getSessionId());
@@ -109,10 +105,7 @@ if (!project.getProjectStatus().equals(ProjectConstants.ACTIVE)) {
         if (req.getDuration() != null) {
             session.setDuration(req.getDuration());
         }
-        if (req.getPageViewCount() != null) {
-            session.setPageViewCount(req.getPageViewCount());
-            session.setIsBounce(req.getPageViewCount() <= 1);
-        }
+       session.setIsBounce(false);
         sessionRepository.save(session);
     }
 
@@ -122,21 +115,18 @@ if (!project.getProjectStatus().equals(ProjectConstants.ACTIVE)) {
         String ipAddress = extractIpAddress(httpRequest);
         String userAgent = httpRequest.getHeader("User-Agent");
 
-        PageView pv = PageView.builder()
-                .projectId(project.getId())
-                .trackingKey(req.getTrackingKey())
-                .sessionId(req.getSessionId())
-                .url(req.getUrl())
-                .title(req.getTitle())
-                .referrer(req.getReferrer())
-                .ipAddress(ipAddress)
-                .userAgent(userAgent)
-                .deviceType(detectDeviceType(userAgent))
-                .browser(detectBrowser(userAgent))
-                .build();
-
+       PageView pv = PageView.builder()
+        .sessionId(Integer.valueOf(req.getSessionId()))
+        .url(req.getUrl())
+        .title(req.getTitle())
+        .referrer(req.getReferrer())
+        .build();
         pv = pageViewRepository.save(pv);
-        log.debug("PageView tracked: {} for project {}", req.getUrl(), project.getId());
+log.debug(
+        "PageView tracked: {} for session {}",
+        req.getUrl(),
+        req.getSessionId()
+);
         return PageViewResponse.from(pv);
     }
 
