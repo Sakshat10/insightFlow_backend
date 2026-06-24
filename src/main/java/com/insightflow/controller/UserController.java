@@ -52,4 +52,11 @@ public class UserController {
         userService.deleteUser(id, currentUser);
         return ResponseEntity.ok(ApiResponse.success("User account deleted successfully"));
     }
+
+
+    @PutMapping("/{id}/restore")
+public UserResponse restoreUser(@PathVariable Integer id) {
+    return userService.restoreUser(id);
+}
+
 }
