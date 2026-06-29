@@ -6,6 +6,7 @@ import com.insightflow.dto.*;
 import com.insightflow.entity.Project;
 import com.insightflow.entity.User;
 import com.insightflow.exception.ForbiddenException;
+import com.insightflow.exception.BadRequestException;
 import com.insightflow.exception.ResourceNotFoundException;
 import com.insightflow.repository.EventRepository;
 import com.insightflow.repository.PageViewRepository;
@@ -41,6 +42,10 @@ public class ProjectService {
 
     @Transactional
     public ProjectResponse createProject(CreateProjectRequest request, User currentUser) {
+
+        if (StringUtils.hasText(request.getDomain()) && projectRepository.existsByDomain(request.getDomain())) {
+            throw new BadRequestException("A project with this domain already exists.");
+        }
 
         String trackingKey = generateTrackingKey();
 
@@ -123,6 +128,11 @@ public class ProjectService {
         }
 
         if (request.getDomain() != null) {
+            if (StringUtils.hasText(request.getDomain()) && !request.getDomain().equals(project.getDomain())) {
+                if (projectRepository.existsByDomain(request.getDomain())) {
+                    throw new BadRequestException("A project with this domain already exists.");
+                }
+            }
             project.setDomain(request.getDomain());
         }
 
@@ -246,13 +256,17 @@ public class ProjectService {
 
     private Project findProjectById(Integer id) {
 
-        return projectRepository.findById(id)
+        Project project = projectRepository.findById(id)
                 .orElseThrow(() ->
                         new ResourceNotFoundException(
                                 "Project",
                                 "id",
                                 id
                         ));
+        if (!project.getProjectStatus().equals(ProjectConstants.ACTIVE)) {
+            throw new BadRequestException("Project is inactive.");
+        }
+        return project;
     }
 
     private void assertOwnership(Project project, User currentUser) {
