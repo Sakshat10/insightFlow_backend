@@ -3,6 +3,7 @@ package com.insightflow.service;
 import com.insightflow.dto.*;
 import com.insightflow.entity.User;
 import com.insightflow.exception.ResourceNotFoundException;
+import com.insightflow.exception.ForbiddenException;
 import com.insightflow.repository.EventRepository;
 import com.insightflow.repository.PageViewRepository;
 import com.insightflow.repository.ProjectRepository;
@@ -152,10 +153,8 @@ private void validateProjectAccess(Integer projectId, User currentUser) {
                     ));
 
     if (!project.getUserId().equals(currentUser.getId())) {
-        throw new ResourceNotFoundException(
-                "Project",
-                "id",
-                projectId
+        throw new ForbiddenException(
+                "You do not have permission to access this project"
         );
     }
 }
