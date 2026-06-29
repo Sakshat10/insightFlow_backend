@@ -13,7 +13,7 @@ public class EventResponse {
     private final Long id;
     private final Integer projectId;
     private final String trackingKey;
-    private final String sessionId;
+    private final Long sessionId;
     private final String eventName;
     private final String eventCategory;
     private final String eventLabel;
@@ -28,8 +28,8 @@ public class EventResponse {
     public static EventResponse from(Event event) {
         return EventResponse.builder()
                 .id(event.getId())
-                .projectId(event.getProjectId())
-                .trackingKey(event.getTrackingKey())
+                .projectId(null)
+                .trackingKey(null)
                 .sessionId(event.getSessionId())
                 .eventName(event.getEventName())
                 .eventCategory(event.getEventCategory())
