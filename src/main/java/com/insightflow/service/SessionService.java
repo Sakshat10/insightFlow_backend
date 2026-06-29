@@ -8,6 +8,7 @@ import com.insightflow.entity.Project;
 import com.insightflow.entity.Session;
 import com.insightflow.entity.User;
 import com.insightflow.exception.BadRequestException;
+import com.insightflow.exception.ForbiddenException;
 import com.insightflow.exception.ResourceNotFoundException;
 import com.insightflow.repository.ProjectRepository;
 import com.insightflow.repository.SessionRepository;
@@ -40,15 +41,15 @@ public class SessionService {
         Project project = projectRepository.findByTrackingKey(
                         request.getTrackingKey())
                 .orElseThrow(() ->
-                        new BadRequestException("Invalid tracking key"));
+                        new BadRequestException("Invalid tracking key."));
 
         if (!project.getProjectStatus().equals(ProjectConstants.ACTIVE)) {
-            throw new BadRequestException("Project is inactive");
+            throw new BadRequestException("Project is inactive.");
         }
 
         if (sessionRepository.findBySessionId(
                 request.getSessionId()).isPresent()) {
-            throw new BadRequestException("Session ID already exists");
+            throw new BadRequestException("Session ID already exists.");
         }
 
       Session session = Session.builder()
@@ -83,6 +84,17 @@ public class SessionService {
                                                       String sortDir,
                                                       User currentUser) {
 
+        Project project = projectRepository.findById(projectId)
+                .orElseThrow(() -> new ResourceNotFoundException("Project", "id", projectId));
+
+        if (!project.getUserId().equals(currentUser.getId())) {
+            throw new ForbiddenException("You do not have permission to access this project");
+        }
+
+        if (!project.getProjectStatus().equals(ProjectConstants.ACTIVE)) {
+            throw new BadRequestException("Project is inactive.");
+        }
+
         Sort sort = sortDir.equalsIgnoreCase("asc")
                 ? Sort.by(sortBy).ascending()
                 : Sort.by(sortBy).descending();
@@ -105,6 +117,13 @@ public class SessionService {
                                 "id",
                                 id
                         ));
+
+        Project project = projectRepository.findById(session.getProjectId())
+                .orElseThrow(() -> new ResourceNotFoundException("Project", "id", session.getProjectId()));
+
+        if (!project.getUserId().equals(currentUser.getId())) {
+            throw new ForbiddenException("You do not have permission to access this project");
+        }
 
         return SessionResponse.from(session);
     }
