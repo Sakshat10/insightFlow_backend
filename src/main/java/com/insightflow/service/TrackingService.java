@@ -40,11 +40,11 @@ public class TrackingService {
 
     public String getTrackingScript(String trackingKey, HttpServletRequest request) {
         Project project = projectRepository.findByTrackingKey(trackingKey)
-        .orElseThrow(() -> new ResourceNotFoundException("Project", "trackingKey", trackingKey));
+                .orElseThrow(() -> new BadRequestException("Invalid tracking key."));
 
-if (!project.getProjectStatus().equals(ProjectConstants.ACTIVE)) {
-    throw new ResourceNotFoundException("Project", "trackingKey", trackingKey);
-}
+        if (!project.getProjectStatus().equals(ProjectConstants.ACTIVE)) {
+            throw new BadRequestException("Project is inactive.");
+        }
 
         String baseUrl = request.getScheme() + "://" + request.getServerName()
                 + (request.getServerPort() != 80 && request.getServerPort() != 443
@@ -115,12 +115,15 @@ if (!project.getProjectStatus().equals(ProjectConstants.ACTIVE)) {
         String ipAddress = extractIpAddress(httpRequest);
         String userAgent = httpRequest.getHeader("User-Agent");
 
-       PageView pv = PageView.builder()
-        .sessionId(Integer.valueOf(req.getSessionId()))
-        .url(req.getUrl())
-        .title(req.getTitle())
-        .referrer(req.getReferrer())
-        .build();
+        Session session = sessionRepository.findById(req.getSessionId())
+                .orElseThrow(() -> new BadRequestException("Session does not exist."));
+
+        PageView pv = PageView.builder()
+                .sessionId(session.getId())
+                .url(req.getUrl())
+                .title(req.getTitle())
+                .referrer(req.getReferrer())
+                .build();
         pv = pageViewRepository.save(pv);
 log.debug(
         "PageView tracked: {} for session {}",
@@ -136,9 +139,11 @@ log.debug(
         String ipAddress = extractIpAddress(httpRequest);
         String userAgent = httpRequest.getHeader("User-Agent");
 
+        if (!sessionRepository.findById(req.getSessionId()).isPresent()) {
+            throw new BadRequestException("Session does not exist.");
+        }
+
         Event event = Event.builder()
-                .projectId(project.getId())
-                .trackingKey(req.getTrackingKey())
                 .sessionId(req.getSessionId())
                 .eventName(req.getEventName())
                 .eventCategory(req.getEventCategory())
@@ -160,10 +165,10 @@ log.debug(
   private Project resolveProject(String trackingKey) {
 
     Project project = projectRepository.findByTrackingKey(trackingKey)
-            .orElseThrow(() -> new BadRequestException("Invalid tracking key"));
+            .orElseThrow(() -> new BadRequestException("Invalid tracking key."));
 
     if (!project.getProjectStatus().equals(ProjectConstants.ACTIVE)) {
-        throw new BadRequestException("Project is inactive");
+        throw new BadRequestException("Project is inactive.");
     }
 
     return project;
