@@ -4,6 +4,7 @@ import com.insightflow.dto.UpdateUserRequest;
 import com.insightflow.dto.UserResponse;
 import com.insightflow.entity.User;
 import com.insightflow.exception.ForbiddenException;
+import com.insightflow.exception.BadRequestException;
 import com.insightflow.exception.ResourceNotFoundException;
 import com.insightflow.repository.UserRepository;
 import lombok.extern.slf4j.Slf4j;
@@ -42,6 +43,9 @@ public class UserService {
                 .orElseThrow(() -> new ResourceNotFoundException("User", "id", id));
 
         if (StringUtils.hasText(request.getEmail())) {
+            if (!request.getEmail().equals(user.getEmail()) && userRepository.existsByEmail(request.getEmail())) {
+                throw new BadRequestException("Email already exists.");
+            }
             user.setEmail(request.getEmail());
         }
         if (StringUtils.hasText(request.getPassword())) {
