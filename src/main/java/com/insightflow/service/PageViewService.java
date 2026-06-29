@@ -5,11 +5,15 @@ import com.insightflow.dto.PageViewResponse;
 import com.insightflow.dto.PagedResponse;
 import com.insightflow.entity.PageView;
 import com.insightflow.entity.Project;
+import com.insightflow.entity.Session;
 import com.insightflow.entity.User;
 import com.insightflow.exception.BadRequestException;
 import com.insightflow.exception.ResourceNotFoundException;
+import com.insightflow.exception.ForbiddenException;
 import com.insightflow.repository.PageViewRepository;
 import com.insightflow.repository.ProjectRepository;
+import com.insightflow.repository.SessionRepository;
+import com.insightflow.constants.ProjectConstants;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.*;
 import org.springframework.stereotype.Service;
@@ -21,28 +25,33 @@ public class PageViewService {
 
     private final PageViewRepository pageViewRepository;
     private final ProjectRepository projectRepository;
+    private final SessionRepository sessionRepository;
 
     public PageViewService(PageViewRepository pageViewRepository,
-                           ProjectRepository projectRepository) {
+                           ProjectRepository projectRepository,
+                           SessionRepository sessionRepository) {
         this.pageViewRepository = pageViewRepository;
         this.projectRepository = projectRepository;
+        this.sessionRepository = sessionRepository;
     }
 
     @Transactional
     public PageViewResponse createPageView(CreatePageViewRequest request,
                                            User currentUser) {
 
-        Project project = projectRepository.findByTrackingKey(
-                        request.getTrackingKey())
+        Project project = projectRepository.findByTrackingKey(request.getTrackingKey())
                 .orElseThrow(() ->
-                        new BadRequestException("Invalid tracking key"));
+                        new BadRequestException("Invalid tracking key."));
 
-        if (!project.getProjectStatus().equals(1)) {
-            throw new BadRequestException("Project is inactive");
+        if (!project.getProjectStatus().equals(ProjectConstants.ACTIVE)) {
+            throw new BadRequestException("Project is inactive.");
         }
 
+        Session session = sessionRepository.findById(request.getSessionId())
+                .orElseThrow(() -> new BadRequestException("Session does not exist."));
+
         PageView pageView = PageView.builder()
-                .sessionId(Integer.valueOf(request.getSessionId()))
+                .sessionId(session.getId())
                 .url(request.getUrl())
                 .title(request.getTitle())
                 .referrer(request.getReferrer())
@@ -50,10 +59,7 @@ public class PageViewService {
 
         pageView = pageViewRepository.save(pageView);
 
-        log.info(
-                "PageView recorded for session {}",
-                pageView.getSessionId()
-        );
+        log.info("PageView recorded for session {}", pageView.getSessionId());
 
         return PageViewResponse.from(pageView);
     }
@@ -64,6 +70,17 @@ public class PageViewService {
                                                         String sortBy,
                                                         String sortDir,
                                                         User currentUser) {
+
+        Project project = projectRepository.findById(projectId)
+                .orElseThrow(() -> new ResourceNotFoundException("Project", "id", projectId));
+
+        if (!project.getUserId().equals(currentUser.getId())) {
+            throw new ForbiddenException("You do not have permission to access this project");
+        }
+
+        if (!project.getProjectStatus().equals(ProjectConstants.ACTIVE)) {
+            throw new BadRequestException("Project is inactive.");
+        }
 
         Sort sort = sortDir.equalsIgnoreCase("asc")
                 ? Sort.by(sortBy).ascending()
@@ -94,6 +111,16 @@ public class PageViewService {
                                 "id",
                                 id
                         ));
+
+        Session session = sessionRepository.findById(pageView.getSessionId())
+                .orElseThrow(() -> new ResourceNotFoundException("Session", "id", pageView.getSessionId()));
+
+        Project project = projectRepository.findById(session.getProjectId())
+                .orElseThrow(() -> new ResourceNotFoundException("Project", "id", session.getProjectId()));
+
+        if (!project.getUserId().equals(currentUser.getId())) {
+            throw new ForbiddenException("You do not have permission to access this project");
+        }
 
         return PageViewResponse.from(pageView);
     }
