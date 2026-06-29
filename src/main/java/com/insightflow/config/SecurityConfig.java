@@ -8,6 +8,7 @@ import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.AuthenticationProvider;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
+import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -37,31 +38,36 @@ public class SecurityConfig {
         this.jwtAuthEntryPoint = jwtAuthEntryPoint;
     }
 
-    @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
-        http
-            .csrf(AbstractHttpConfigurer::disable)
-            .exceptionHandling(ex -> ex.authenticationEntryPoint(jwtAuthEntryPoint))
-            .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/auth/**").permitAll()
-                .requestMatchers(HttpMethod.GET, "/tracking/script/**").permitAll()
-                .requestMatchers(HttpMethod.POST, "/tracking/page-view",
-                        "/tracking/event",
-                        "/tracking/session-start",
-                        "/tracking/session-end").permitAll()
-                .requestMatchers("/swagger-ui/**", "/v3/api-docs/**", "/swagger-ui.html").permitAll()
-                .requestMatchers("/users/**").hasAnyRole("USER", "ADMIN")
-                .requestMatchers("/admin/**").hasRole("ADMIN")
-                .anyRequest().authenticated()
-            )
-            .sessionManagement(session -> session
-                .sessionCreationPolicy(SessionCreationPolicy.STATELESS)
-            )
-            .authenticationProvider(authenticationProvider())
-            .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
+   @Bean
+public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+    http
+        .cors(Customizer.withDefaults()) // <-- ADD THIS
+        .csrf(AbstractHttpConfigurer::disable)
+        .exceptionHandling(ex -> ex.authenticationEntryPoint(jwtAuthEntryPoint))
+        .authorizeHttpRequests(auth -> auth
+            .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll() // <-- ADD THIS
+            .requestMatchers("/auth/**").permitAll()
+            .requestMatchers(HttpMethod.GET, "/tracking/script/**").permitAll()
+            .requestMatchers(
+                    HttpMethod.POST,
+                    "/tracking/page-view",
+                    "/tracking/event",
+                    "/tracking/session-start",
+                    "/tracking/session-end"
+            ).permitAll()
+            .requestMatchers("/swagger-ui/**", "/v3/api-docs/**", "/swagger-ui.html").permitAll()
+            .requestMatchers("/users/**").hasAnyRole("USER", "ADMIN")
+            .requestMatchers("/admin/**").hasRole("ADMIN")
+            .anyRequest().authenticated()
+        )
+        .sessionManagement(session ->
+            session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
+        )
+        .authenticationProvider(authenticationProvider())
+        .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 
-        return http.build();
-    }
+    return http.build();
+}
 
     @Bean
     public AuthenticationProvider authenticationProvider() {
