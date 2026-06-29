@@ -12,8 +12,7 @@ public class CreatePageViewRequest {
     @NotBlank(message = "Tracking key is required")
     private String trackingKey;
 
-    @Size(max = 128)
-    private String sessionId;
+    private Long sessionId;
 
     private String url;
 
