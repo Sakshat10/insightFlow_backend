@@ -1,5 +1,6 @@
 package com.insightflow.repository;
 
+import com.insightflow.dto.PageViewProjection;
 import com.insightflow.entity.PageView;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -12,29 +13,39 @@ import java.util.List;
 public interface PageViewRepository extends JpaRepository<PageView, Long> {
 
     @Query("""
-            SELECT pv
-            FROM PageView pv, Session s
-            WHERE pv.sessionId = s.id
-              AND s.projectId = :projectId
+            SELECT
+                pv.id AS id,
+                s.projectId AS projectId,
+                pv.sessionId AS sessionId,
+                pv.url AS url,
+                pv.title AS title,
+                pv.referrer AS referrer,
+                pv.createdAt AS createdAt
+            FROM PageView pv
+            JOIN Session s
+                ON pv.sessionId = s.id
+            WHERE s.projectId = :projectId
             """)
-    List<PageView> findByProjectId(
+    List<PageViewProjection> findByProjectId(
             @Param("projectId") Integer projectId,
             Pageable pageable);
 
     @Query("""
             SELECT COUNT(pv)
-            FROM PageView pv, Session s
-            WHERE pv.sessionId = s.id
-              AND s.projectId = :projectId
+            FROM PageView pv
+            JOIN Session s
+                ON pv.sessionId = s.id
+            WHERE s.projectId = :projectId
             """)
     long countByProjectId(
             @Param("projectId") Integer projectId);
 
     @Query("""
             SELECT COUNT(pv)
-            FROM PageView pv, Session s
-            WHERE pv.sessionId = s.id
-              AND s.projectId = :projectId
+            FROM PageView pv
+            JOIN Session s
+                ON pv.sessionId = s.id
+            WHERE s.projectId = :projectId
               AND pv.createdAt >= :since
             """)
     long countByProjectIdAndCreatedAtAfter(
@@ -43,9 +54,10 @@ public interface PageViewRepository extends JpaRepository<PageView, Long> {
 
     @Query("""
             SELECT pv.url, COUNT(pv)
-            FROM PageView pv, Session s
-            WHERE pv.sessionId = s.id
-              AND s.projectId = :projectId
+            FROM PageView pv
+            JOIN Session s
+                ON pv.sessionId = s.id
+            WHERE s.projectId = :projectId
             GROUP BY pv.url
             ORDER BY COUNT(pv) DESC
             """)
@@ -55,9 +67,10 @@ public interface PageViewRepository extends JpaRepository<PageView, Long> {
 
     @Query("""
             SELECT CAST(pv.createdAt AS date), COUNT(pv)
-            FROM PageView pv, Session s
-            WHERE pv.sessionId = s.id
-              AND s.projectId = :projectId
+            FROM PageView pv
+            JOIN Session s
+                ON pv.sessionId = s.id
+            WHERE s.projectId = :projectId
               AND pv.createdAt BETWEEN :from AND :to
             GROUP BY CAST(pv.createdAt AS date)
             ORDER BY CAST(pv.createdAt AS date)
