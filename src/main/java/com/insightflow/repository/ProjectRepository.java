@@ -31,6 +31,8 @@ public interface ProjectRepository extends JpaRepository<Project, Integer> {
 
     boolean existsByTrackingKey(String trackingKey);
 
+    boolean existsByDomain(String domain);
+
     long countByUserId(Integer userId);
 
     long countByUserIdAndProjectStatus(
