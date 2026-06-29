@@ -24,7 +24,7 @@ public class PageView extends BaseEntity {
     private Long id;
 
     @Column(name = "session_id", nullable = false)
-    private Integer sessionId;
+    private Long sessionId;
 
     @Column(name = "page_url", columnDefinition = "TEXT")
     private String url;
