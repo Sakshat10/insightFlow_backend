@@ -37,10 +37,10 @@ public class AuthService {
     @Transactional
     public AuthResponse register(RegisterRequest request) {
         if (userRepository.existsByUsername(request.getUsername())) {
-            throw new DuplicateResourceException("User", "username", request.getUsername());
+            throw new BadRequestException("Username already exists.");
         }
         if (userRepository.existsByEmail(request.getEmail())) {
-            throw new DuplicateResourceException("User", "email", request.getEmail());
+            throw new BadRequestException("Email already exists.");
         }
 
         User user = User.builder()
