@@ -135,12 +135,14 @@ log.debug(
 
     @Transactional
     public EventResponse trackEvent(TrackEventRequest req, HttpServletRequest httpRequest) {
-        Project project = resolveProject(req.getTrackingKey());
-        String ipAddress = extractIpAddress(httpRequest);
-        String userAgent = httpRequest.getHeader("User-Agent");
+        Session session = sessionRepository.findById(req.getSessionId())
+                .orElseThrow(() -> new BadRequestException("Session does not exist."));
 
-        if (!sessionRepository.findById(req.getSessionId()).isPresent()) {
-            throw new BadRequestException("Session does not exist.");
+        Project project = projectRepository.findById(session.getProjectId())
+                .orElseThrow(() -> new BadRequestException("Project does not exist."));
+
+        if (!project.getProjectStatus().equals(ProjectConstants.ACTIVE)) {
+            throw new BadRequestException("Project is inactive.");
         }
 
         Event event = Event.builder()
@@ -150,11 +152,8 @@ log.debug(
                 .eventLabel(req.getEventLabel())
                 .eventValue(req.getEventValue())
                 .url(req.getUrl())
-                .ipAddress(ipAddress)
-                .userAgent(userAgent)
-                .deviceType(detectDeviceType(userAgent))
-                .browser(detectBrowser(userAgent))
                 .properties(req.getProperties())
+                .isConversion(req.getIsConversion())
                 .build();
 
         event = eventRepository.save(event);
