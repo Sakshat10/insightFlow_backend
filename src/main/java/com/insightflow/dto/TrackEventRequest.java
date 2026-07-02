@@ -9,9 +9,6 @@ import lombok.Setter;
 @Setter
 public class TrackEventRequest {
 
-    @NotBlank(message = "Tracking key is required")
-    private String trackingKey;
-
     private Long sessionId;
 
     @NotBlank(message = "Event name is required")
@@ -30,4 +27,6 @@ public class TrackEventRequest {
     private String url;
 
     private String properties;
+
+    private Boolean isConversion;
 }
