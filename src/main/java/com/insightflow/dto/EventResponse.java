@@ -1,6 +1,7 @@
 package com.insightflow.dto;
 
 import com.insightflow.entity.Event;
+import com.insightflow.entity.Session;
 import lombok.Builder;
 import lombok.Getter;
 
@@ -11,36 +12,52 @@ import java.time.LocalDateTime;
 public class EventResponse {
 
     private final Long id;
-    private final Integer projectId;
-    private final String trackingKey;
     private final Long sessionId;
     private final String eventName;
     private final String eventCategory;
     private final String eventLabel;
     private final String eventValue;
     private final String url;
-    private final String country;
-    private final String deviceType;
-    private final String browser;
     private final String properties;
+    private final Boolean isConversion;
+    private final String country;
+    private final String browser;
     private final LocalDateTime createdAt;
+    private final LocalDateTime updatedAt;
 
     public static EventResponse from(Event event) {
         return EventResponse.builder()
                 .id(event.getId())
-                .projectId(null)
-                .trackingKey(null)
                 .sessionId(event.getSessionId())
                 .eventName(event.getEventName())
                 .eventCategory(event.getEventCategory())
                 .eventLabel(event.getEventLabel())
                 .eventValue(event.getEventValue())
                 .url(event.getUrl())
-                .country(event.getCountry())
-                .deviceType(event.getDeviceType())
-                .browser(event.getBrowser())
                 .properties(event.getProperties())
+                .isConversion(event.getIsConversion())
+                .country(null)
+                .browser(null)
                 .createdAt(event.getCreatedAt())
+                .updatedAt(event.getUpdatedAt())
+                .build();
+    }
+
+    public static EventResponse from(Event event, Session session) {
+        return EventResponse.builder()
+                .id(event.getId())
+                .sessionId(event.getSessionId())
+                .eventName(event.getEventName())
+                .eventCategory(event.getEventCategory())
+                .eventLabel(event.getEventLabel())
+                .eventValue(event.getEventValue())
+                .url(event.getUrl())
+                .properties(event.getProperties())
+                .isConversion(event.getIsConversion())
+                .country(session != null ? session.getCountry() : null)
+                .browser(session != null ? session.getBrowser() : null)
+                .createdAt(event.getCreatedAt())
+                .updatedAt(event.getUpdatedAt())
                 .build();
     }
 }
