@@ -10,6 +10,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDate;
 import java.util.List;
 
 @Slf4j
@@ -22,6 +23,17 @@ public class AnalyticsController {
 
     public AnalyticsController(AnalyticsService analyticsService) {
         this.analyticsService = analyticsService;
+    }
+
+    @GetMapping("/event-timeline")
+    @Operation(summary = "Get daily custom event activity timeline")
+    public ResponseEntity<ApiResponse<EventTimelineResponse>> getEventTimeline(
+            @RequestParam Integer projectId,
+            @RequestParam LocalDate from,
+            @RequestParam LocalDate to,
+            @AuthenticationPrincipal User currentUser) {
+        return ResponseEntity.ok(ApiResponse.success(
+                analyticsService.getEventTimeline(projectId, from, to, currentUser)));
     }
 
     @GetMapping("/overview")
