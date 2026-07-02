@@ -9,9 +9,6 @@ import lombok.Setter;
 @Setter
 public class CreateEventRequest {
 
-    @NotBlank(message = "Tracking key is required")
-    private String trackingKey;
-
     private Long sessionId;
 
     @NotBlank(message = "Event name is required")
@@ -29,19 +26,7 @@ public class CreateEventRequest {
 
     private String url;
 
-    @Size(max = 45)
-    private String ipAddress;
-
-    private String userAgent;
-
-    @Size(max = 100)
-    private String country;
-
-    @Size(max = 20)
-    private String deviceType;
-
-    @Size(max = 50)
-    private String browser;
-
     private String properties;
+
+    private Boolean isConversion;
 }
