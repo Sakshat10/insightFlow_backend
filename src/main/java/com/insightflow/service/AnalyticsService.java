@@ -142,6 +142,61 @@ public class AnalyticsService {
         );
     }
 
+    public EventTimelineResponse getEventTimeline(
+            Integer projectId,
+            LocalDate from,
+            LocalDate to,
+            User currentUser) {
+
+        com.insightflow.entity.Project project = projectRepository.findById(projectId)
+                .orElseThrow(() ->
+                        new ResourceNotFoundException(
+                                "Project",
+                                "id",
+                                projectId
+                        ));
+
+        if (!project.getUserId().equals(currentUser.getId())) {
+            throw new ForbiddenException(
+                    "You do not have permission to access this project"
+            );
+        }
+
+        if (!com.insightflow.constants.ProjectConstants.ACTIVE.equals(project.getProjectStatus())) {
+            throw new com.insightflow.exception.BadRequestException("Project is inactive.");
+        }
+
+        LocalDateTime fromDateTime = from.atStartOfDay();
+        LocalDateTime toDateTime = to.atTime(23, 59, 59, 999999999);
+
+        List<EventTimelineProjection> dbResults = eventRepository.getEventTimeline(projectId, fromDateTime, toDateTime);
+
+        java.util.Map<LocalDate, List<EventTimelineItem>> eventsByDate = new java.util.HashMap<>();
+        for (EventTimelineProjection proj : dbResults) {
+            LocalDate date = proj.getDate();
+            EventTimelineItem item = EventTimelineItem.builder()
+                    .eventName(proj.getEventName())
+                    .count(proj.getCount())
+                    .build();
+            eventsByDate.computeIfAbsent(date, d -> new ArrayList<>()).add(item);
+        }
+
+        List<EventTimelineDay> timeline = new ArrayList<>();
+        LocalDate currentDate = from;
+        while (!currentDate.isAfter(to)) {
+            List<EventTimelineItem> items = eventsByDate.getOrDefault(currentDate, new java.util.ArrayList<>());
+            timeline.add(EventTimelineDay.builder()
+                    .date(currentDate)
+                    .events(items)
+                    .build());
+            currentDate = currentDate.plusDays(1);
+        }
+
+        return EventTimelineResponse.builder()
+                .timeline(timeline)
+                .build();
+    }
+
 private void validateProjectAccess(Integer projectId, User currentUser) {
 
     var project = projectRepository.findById(projectId)
