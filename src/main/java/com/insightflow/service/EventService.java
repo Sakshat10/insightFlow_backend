@@ -42,17 +42,17 @@ public class EventService {
     public EventResponse createEvent(CreateEventRequest request,
                                      User currentUser) {
 
-        Project project = projectRepository.findByTrackingKey(request.getTrackingKey())
+        Session session = sessionRepository.findById(request.getSessionId())
                 .orElseThrow(() ->
-                        new BadRequestException("Invalid tracking key."));
+                        new BadRequestException("Session does not exist."));
+
+        Project project = projectRepository.findById(session.getProjectId())
+                .orElseThrow(() ->
+                        new BadRequestException("Project does not exist."));
 
         if (!project.getProjectStatus().equals(ProjectConstants.ACTIVE)) {
             throw new BadRequestException("Project is inactive.");
         }
-
-        Session session = sessionRepository.findById(request.getSessionId())
-                .orElseThrow(() ->
-                        new BadRequestException("Session does not exist."));
 
         Event event = Event.builder()
                 .sessionId(request.getSessionId())
@@ -61,12 +61,8 @@ public class EventService {
                 .eventLabel(request.getEventLabel())
                 .eventValue(request.getEventValue())
                 .url(request.getUrl())
-                .ipAddress(request.getIpAddress())
-                .userAgent(request.getUserAgent())
-                .country(request.getCountry())
-                .deviceType(request.getDeviceType())
-                .browser(request.getBrowser())
                 .properties(request.getProperties())
+                .isConversion(request.getIsConversion())
                 .build();
 
         event = eventRepository.save(event);
@@ -148,6 +144,6 @@ public class EventService {
                     "You do not have permission to access this project");
         }
 
-        return EventResponse.from(event);
+        return EventResponse.from(event, session);
     }
 }
