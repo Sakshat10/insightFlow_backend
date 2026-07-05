@@ -2,6 +2,7 @@ package com.insightflow.service;
 
 import com.insightflow.constants.ProjectConstants;
 import com.insightflow.dto.CreateEventRequest;
+import com.insightflow.dto.EventDetailsProjection;
 import com.insightflow.dto.EventResponse;
 import com.insightflow.dto.PagedResponse;
 import com.insightflow.entity.Event;
