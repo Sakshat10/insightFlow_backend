@@ -1,9 +1,14 @@
 package com.insightflow.dto;
 
-import java.time.LocalDate;
+import org.springframework.beans.factory.annotation.Value;
 
 public interface EventTimelineProjection {
-    LocalDate getDate();
-    String getEventName();
-    Long getCount();
+    @Value("#{target.date}")
+    Object getDate();
+
+    @Value("#{target.event_name != null ? target.event_name : (target.eventName != null ? target.eventName : target.eventname)}")
+    Object getEventName();
+
+    @Value("#{target.count}")
+    Object getCount();
 }
