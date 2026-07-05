@@ -22,6 +22,7 @@ public class EventResponse {
     private final Boolean isConversion;
     private final String country;
     private final String browser;
+    private final String deviceType;
     private final LocalDateTime createdAt;
     private final LocalDateTime updatedAt;
 
@@ -38,6 +39,7 @@ public class EventResponse {
                 .isConversion(event.getIsConversion())
                 .country(null)
                 .browser(null)
+                .deviceType(null)
                 .createdAt(event.getCreatedAt())
                 .updatedAt(event.getUpdatedAt())
                 .build();
@@ -56,8 +58,31 @@ public class EventResponse {
                 .isConversion(event.getIsConversion())
                 .country(session != null ? session.getCountry() : null)
                 .browser(session != null ? session.getBrowser() : null)
+                .deviceType(session != null ? session.getDeviceType() : null)
                 .createdAt(event.getCreatedAt())
                 .updatedAt(event.getUpdatedAt())
+                .build();
+    }
+
+    public static EventResponse from(EventDetailsProjection projection) {
+        if (projection == null) {
+            return null;
+        }
+        return EventResponse.builder()
+                .id(projection.getId())
+                .sessionId(projection.getSessionId())
+                .eventName(projection.getEventName())
+                .eventCategory(projection.getEventCategory())
+                .eventLabel(projection.getEventLabel())
+                .eventValue(projection.getEventValue())
+                .url(projection.getUrl())
+                .properties(projection.getProperties())
+                .isConversion(projection.getIsConversion())
+                .country(projection.getCountry())
+                .browser(projection.getBrowser())
+                .deviceType(projection.getDeviceType())
+                .createdAt(projection.getCreatedAt())
+                .updatedAt(projection.getUpdatedAt())
                 .build();
     }
 }
