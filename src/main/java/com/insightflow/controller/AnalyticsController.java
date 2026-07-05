@@ -119,4 +119,16 @@ public class AnalyticsController {
         return ResponseEntity.ok(ApiResponse.success(
                 analyticsService.getReferrerStats(projectId, currentUser)));
     }
+
+    @GetMapping("/funnel")
+    @Operation(summary = "Get ordered session-based funnel analytics")
+    public ResponseEntity<ApiResponse<FunnelAnalyticsResponse>> getFunnel(
+            @RequestParam Integer projectId,
+            @RequestParam LocalDate from,
+            @RequestParam LocalDate to,
+            @RequestParam List<String> steps,
+            @AuthenticationPrincipal User currentUser) {
+        return ResponseEntity.ok(ApiResponse.success(
+                analyticsService.getFunnel(projectId, from, to, steps, currentUser)));
+    }
 }
