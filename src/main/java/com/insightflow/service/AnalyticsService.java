@@ -4,6 +4,7 @@ import com.insightflow.dto.*;
 import com.insightflow.entity.User;
 import com.insightflow.exception.ResourceNotFoundException;
 import com.insightflow.exception.ForbiddenException;
+import com.insightflow.exception.BadRequestException;
 import com.insightflow.repository.EventRepository;
 import com.insightflow.repository.PageViewRepository;
 import com.insightflow.repository.ProjectRepository;
@@ -166,17 +167,42 @@ public class AnalyticsService {
             throw new com.insightflow.exception.BadRequestException("Project is inactive.");
         }
 
-        LocalDateTime fromDateTime = from.atStartOfDay();
-        LocalDateTime toDateTime = to.atTime(23, 59, 59, 999999999);
+        String fromStr = from.atStartOfDay().format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
+        String toStr = to.atTime(23, 59, 59).format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
 
-        List<EventTimelineProjection> dbResults = eventRepository.getEventTimeline(projectId, fromDateTime, toDateTime);
+        List<EventTimelineProjection> dbResults = eventRepository.getEventTimeline(projectId, fromStr, toStr);
 
         java.util.Map<LocalDate, List<EventTimelineItem>> eventsByDate = new java.util.HashMap<>();
         for (EventTimelineProjection proj : dbResults) {
-            LocalDate date = proj.getDate();
+            Object rawDate = proj.getDate();
+            if (rawDate == null) {
+                continue;
+            }
+
+            LocalDate date;
+            if (rawDate instanceof java.sql.Date) {
+                date = ((java.sql.Date) rawDate).toLocalDate();
+            } else if (rawDate instanceof LocalDate) {
+                date = (LocalDate) rawDate;
+            } else if (rawDate instanceof java.util.Date) {
+                date = ((java.util.Date) rawDate).toInstant().atZone(java.time.ZoneId.systemDefault()).toLocalDate();
+            } else {
+                date = LocalDate.parse(rawDate.toString().substring(0, 10));
+            }
+
+            String eventName = proj.getEventName() != null ? proj.getEventName().toString() : "Unknown";
+
+            Object rawCount = proj.getCount();
+            long count = 0;
+            if (rawCount instanceof Number) {
+                count = ((Number) rawCount).longValue();
+            } else if (rawCount != null) {
+                count = Long.parseLong(rawCount.toString());
+            }
+
             EventTimelineItem item = EventTimelineItem.builder()
-                    .eventName(proj.getEventName())
-                    .count(proj.getCount())
+                    .eventName(eventName)
+                    .count(count)
                     .build();
             eventsByDate.computeIfAbsent(date, d -> new ArrayList<>()).add(item);
         }
@@ -184,7 +210,7 @@ public class AnalyticsService {
         List<EventTimelineDay> timeline = new ArrayList<>();
         LocalDate currentDate = from;
         while (!currentDate.isAfter(to)) {
-            List<EventTimelineItem> items = eventsByDate.getOrDefault(currentDate, new java.util.ArrayList<>());
+            List<EventTimelineItem> items = eventsByDate.getOrDefault(currentDate, new ArrayList<>());
             timeline.add(EventTimelineDay.builder()
                     .date(currentDate)
                     .events(items)
@@ -242,5 +268,145 @@ private void validateProjectAccess(Integer projectId, User currentUser) {
             }
         }
         return 0;
+    }
+
+    public FunnelAnalyticsResponse getFunnel(
+            Integer projectId,
+            LocalDate from,
+            LocalDate to,
+            List<String> steps,
+            User currentUser) {
+
+        if (projectId == null) {
+            throw new BadRequestException("projectId is required");
+        }
+        if (from == null) {
+            throw new BadRequestException("from is required");
+        }
+        if (to == null) {
+            throw new BadRequestException("to is required");
+        }
+        if (from.isAfter(to)) {
+            throw new BadRequestException("from date must not be after to date");
+        }
+        if (steps == null || steps.isEmpty()) {
+            throw new BadRequestException("steps is required");
+        }
+
+        List<String> normalizedSteps = new ArrayList<>();
+        for (String step : steps) {
+            if (step == null) {
+                throw new BadRequestException("funnel steps cannot be blank");
+            }
+            String trimmed = step.trim();
+            if (trimmed.isEmpty()) {
+                throw new BadRequestException("funnel steps cannot be blank");
+            }
+            normalizedSteps.add(trimmed);
+        }
+
+        if (normalizedSteps.size() < 2) {
+            throw new BadRequestException("Require at least 2 non-blank funnel steps for this MVP");
+        }
+
+        validateProjectAccess(projectId, currentUser);
+
+        LocalDateTime fromDateTime = from.atStartOfDay();
+        LocalDateTime toExclusive = to.plusDays(1).atStartOfDay();
+
+        List<FunnelEventProjection> events = eventRepository.findFunnelEvents(
+                projectId, fromDateTime, toExclusive, normalizedSteps);
+
+        java.util.Map<Long, List<FunnelEventProjection>> eventsBySession = new java.util.LinkedHashMap<>();
+        for (FunnelEventProjection event : events) {
+            eventsBySession.computeIfAbsent(event.getSessionId(), k -> new ArrayList<>()).add(event);
+        }
+
+        int numSteps = normalizedSteps.size();
+        long[] stepCounts = new long[numSteps];
+
+        for (List<FunnelEventProjection> sessionEvents : eventsBySession.values()) {
+            int matchedStepIndex = 0;
+            for (FunnelEventProjection event : sessionEvents) {
+                if (matchedStepIndex < numSteps 
+                        && event.getEventName().equals(normalizedSteps.get(matchedStepIndex))) {
+                    matchedStepIndex++;
+                }
+            }
+            for (int i = 0; i < matchedStepIndex; i++) {
+                stepCounts[i]++;
+            }
+        }
+
+        List<FunnelStepResponse> stepResponses = new ArrayList<>();
+        long firstStepSessions = stepCounts[0];
+
+        for (int i = 0; i < numSteps; i++) {
+            long currentStepSessions = stepCounts[i];
+
+            double conversionFromPrevious = 0.0;
+            if (i == 0) {
+                conversionFromPrevious = currentStepSessions > 0 ? 100.0 : 0.0;
+            } else {
+                long previousStepSessions = stepCounts[i - 1];
+                conversionFromPrevious = previousStepSessions > 0 
+                        ? ((double) currentStepSessions / previousStepSessions) * 100.0
+                        : 0.0;
+            }
+            conversionFromPrevious = Math.round(conversionFromPrevious * 100.0) / 100.0;
+
+            double conversionFromEntry = firstStepSessions > 0
+                    ? ((double) currentStepSessions / firstStepSessions) * 100.0
+                    : 0.0;
+            conversionFromEntry = Math.round(conversionFromEntry * 100.0) / 100.0;
+
+            long dropOffSessions = 0;
+            double dropOffRate = 0.0;
+            if (i < numSteps - 1) {
+                long nextStepSessions = stepCounts[i + 1];
+                dropOffSessions = currentStepSessions - nextStepSessions;
+                dropOffRate = currentStepSessions > 0
+                        ? ((double) dropOffSessions / currentStepSessions) * 100.0
+                        : 0.0;
+                dropOffRate = Math.round(dropOffRate * 100.0) / 100.0;
+            }
+
+            stepResponses.add(FunnelStepResponse.builder()
+                    .step(i + 1)
+                    .eventName(normalizedSteps.get(i))
+                    .sessions(currentStepSessions)
+                    .conversionFromPrevious(conversionFromPrevious)
+                    .conversionFromEntry(conversionFromEntry)
+                    .dropOffSessions(dropOffSessions)
+                    .dropOffRate(dropOffRate)
+                    .build());
+        }
+
+        long totalEnteredSessions = firstStepSessions;
+        long totalConvertedSessions = stepCounts[numSteps - 1];
+        double overallConversionRate = totalEnteredSessions > 0
+                ? ((double) totalConvertedSessions / totalEnteredSessions) * 100.0
+                : 0.0;
+        overallConversionRate = Math.round(overallConversionRate * 100.0) / 100.0;
+
+        Integer biggestDropOffStep = null;
+        if (numSteps >= 2 && totalEnteredSessions > 0) {
+            long maxDropOff = 0;
+            for (int i = 0; i < numSteps - 1; i++) {
+                long currentDropOff = stepCounts[i] - stepCounts[i + 1];
+                if (currentDropOff > maxDropOff) {
+                    maxDropOff = currentDropOff;
+                    biggestDropOffStep = i + 1;
+                }
+            }
+        }
+
+        return FunnelAnalyticsResponse.builder()
+                .totalEnteredSessions(totalEnteredSessions)
+                .totalConvertedSessions(totalConvertedSessions)
+                .overallConversionRate(overallConversionRate)
+                .biggestDropOffStep(biggestDropOffStep)
+                .steps(stepResponses)
+                .build();
     }
 }
