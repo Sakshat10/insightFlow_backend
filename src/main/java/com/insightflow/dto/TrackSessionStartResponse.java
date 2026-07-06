@@ -8,5 +8,4 @@ import lombok.Getter;
 public class TrackSessionStartResponse {
 
     private final String sessionId;
-    private final String trackingKey;
 }
