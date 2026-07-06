@@ -10,6 +10,4 @@ public final class AppConstants {
     public static final String DEFAULT_SORT_BY = "createdAt";
     public static final String DEFAULT_SORT_DIR = "desc";
 
-    public static final String TOKEN_PREFIX = "trk_";
-    public static final int TRACKING_KEY_LENGTH = 32;
 }
