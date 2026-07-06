@@ -114,4 +114,16 @@ public interface EventRepository extends JpaRepository<Event, Long> {
             @Param("fromDateTime") LocalDateTime fromDateTime,
             @Param("toExclusive") LocalDateTime toExclusive,
             @Param("stepNames") List<String> stepNames);
+
+    @Query("""
+            SELECT COUNT(e) > 0
+            FROM Event e
+            JOIN Session s
+                ON e.sessionId = s.id
+            WHERE s.projectId = :projectId
+              AND e.eventName = :eventName
+            """)
+    boolean existsByProjectIdAndEventName(
+            @Param("projectId") Integer projectId,
+            @Param("eventName") String eventName);
 }
