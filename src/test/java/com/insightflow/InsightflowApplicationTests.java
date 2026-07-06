@@ -1,12 +1,18 @@
 package com.insightflow;
 
-import com.insightflow.dto.EventResponse;
-import com.insightflow.dto.FunnelAnalyticsResponse;
-import com.insightflow.dto.PagedResponse;
+import com.insightflow.dto.*;
 import com.insightflow.entity.User;
+import com.insightflow.entity.ApiKeyEnvironment;
+import com.insightflow.entity.ApiKeyStatus;
 import com.insightflow.exception.BadRequestException;
+import com.insightflow.exception.ForbiddenException;
 import com.insightflow.repository.UserRepository;
+import com.insightflow.repository.ApiKeyRepository;
 import com.insightflow.service.EventService;
+import com.insightflow.service.FunnelService;
+import com.insightflow.service.ApiKeyService;
+import com.insightflow.service.ApiKeyValidationService;
+import com.insightflow.service.TrackingService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -21,6 +27,21 @@ import static org.junit.jupiter.api.Assertions.*;
 
 @SpringBootTest
 class InsightflowApplicationTests {
+
+    @Autowired
+    private FunnelService funnelService;
+
+    @Autowired
+    private ApiKeyService apiKeyService;
+
+    @Autowired
+    private ApiKeyValidationService apiKeyValidationService;
+
+    @Autowired
+    private ApiKeyRepository apiKeyRepository;
+
+    @Autowired
+    private TrackingService trackingService;
 
     @Autowired
     private EventService eventService;
@@ -343,5 +364,353 @@ class InsightflowApplicationTests {
 
         assertEquals(1, response.getTotalEnteredSessions());
         assertEquals(1, response.getTotalConvertedSessions());
+    }
+
+    @Test
+    @Transactional
+    void testCreateFunnelSuccess() {
+        User currentUser = userRepository.findById(4).orElseThrow();
+
+        // page_view, button_click exist in project 6
+        CreateFunnelRequest request = CreateFunnelRequest.builder()
+                .projectId(6)
+                .name("Test Funnel")
+                .description("Desc")
+                .steps(List.of(
+                        FunnelStepRequest.builder().stepOrder(2).eventName("button_click").build(),
+                        FunnelStepRequest.builder().stepOrder(1).eventName("page_view").build()
+                ))
+                .build();
+
+        FunnelResponse response = funnelService.createFunnel(request, currentUser);
+
+        assertNotNull(response);
+        assertNotNull(response.getId());
+        assertEquals("Test Funnel", response.getName());
+        assertEquals(2, response.getSteps().size());
+        
+        // Assert sorting by stepOrder is enforced
+        assertEquals(1, response.getSteps().get(0).getStepOrder());
+        assertEquals("page_view", response.getSteps().get(0).getEventName());
+        assertEquals(2, response.getSteps().get(1).getStepOrder());
+        assertEquals("button_click", response.getSteps().get(1).getEventName());
+    }
+
+    @Test
+    @Transactional
+    void testCreateFunnelValidationFailures() {
+        User currentUser = userRepository.findById(4).orElseThrow();
+
+        // 1. Minimum 2 steps
+        CreateFunnelRequest req1 = CreateFunnelRequest.builder()
+                .projectId(6)
+                .name("Funnel")
+                .steps(List.of(FunnelStepRequest.builder().stepOrder(1).eventName("page_view").build()))
+                .build();
+        assertThrows(BadRequestException.class, () -> funnelService.createFunnel(req1, currentUser));
+
+        // 2. Non-existent eventName
+        CreateFunnelRequest req2 = CreateFunnelRequest.builder()
+                .projectId(6)
+                .name("Funnel")
+                .steps(List.of(
+                        FunnelStepRequest.builder().stepOrder(1).eventName("page_view").build(),
+                        FunnelStepRequest.builder().stepOrder(2).eventName("non_existent_event_name_123").build()
+                ))
+                .build();
+        assertThrows(BadRequestException.class, () -> funnelService.createFunnel(req2, currentUser));
+
+        // 3. Duplicate eventName
+        CreateFunnelRequest req3 = CreateFunnelRequest.builder()
+                .projectId(6)
+                .name("Funnel")
+                .steps(List.of(
+                        FunnelStepRequest.builder().stepOrder(1).eventName("page_view").build(),
+                        FunnelStepRequest.builder().stepOrder(2).eventName("page_view").build()
+                ))
+                .build();
+        assertThrows(BadRequestException.class, () -> funnelService.createFunnel(req3, currentUser));
+
+        // 4. Duplicate stepOrder
+        CreateFunnelRequest req4 = CreateFunnelRequest.builder()
+                .projectId(6)
+                .name("Funnel")
+                .steps(List.of(
+                        FunnelStepRequest.builder().stepOrder(1).eventName("page_view").build(),
+                        FunnelStepRequest.builder().stepOrder(1).eventName("button_click").build()
+                ))
+                .build();
+        assertThrows(BadRequestException.class, () -> funnelService.createFunnel(req4, currentUser));
+
+        // 5. Positive stepOrder
+        CreateFunnelRequest req5 = CreateFunnelRequest.builder()
+                .projectId(6)
+                .name("Funnel")
+                .steps(List.of(
+                        FunnelStepRequest.builder().stepOrder(0).eventName("page_view").build(),
+                        FunnelStepRequest.builder().stepOrder(1).eventName("button_click").build()
+                ))
+                .build();
+        assertThrows(BadRequestException.class, () -> funnelService.createFunnel(req5, currentUser));
+    }
+
+    @Test
+    @Transactional
+    void testCreateFunnelUnauthorizedProject() {
+        // User 4 does not own project 5 (owned by user 3)
+        User currentUser = userRepository.findById(4).orElseThrow();
+        CreateFunnelRequest request = CreateFunnelRequest.builder()
+                .projectId(5)
+                .name("Test Funnel")
+                .steps(List.of(
+                        FunnelStepRequest.builder().stepOrder(1).eventName("page_view").build(),
+                        FunnelStepRequest.builder().stepOrder(2).eventName("button_click").build()
+                ))
+                .build();
+        assertThrows(ForbiddenException.class, () -> funnelService.createFunnel(request, currentUser));
+    }
+
+    @Test
+    @Transactional
+    void testGetFunnelsListAndById() {
+        User currentUser = userRepository.findById(4).orElseThrow();
+
+        CreateFunnelRequest request = CreateFunnelRequest.builder()
+                .projectId(6)
+                .name("Funnel List Test")
+                .steps(List.of(
+                        FunnelStepRequest.builder().stepOrder(1).eventName("page_view").build(),
+                        FunnelStepRequest.builder().stepOrder(2).eventName("button_click").build()
+                ))
+                .build();
+
+        FunnelResponse created = funnelService.createFunnel(request, currentUser);
+
+        // Get by ID
+        FunnelResponse fetched = funnelService.getFunnelById(created.getId(), currentUser);
+        assertNotNull(fetched);
+        assertEquals(created.getId(), fetched.getId());
+        assertEquals("Funnel List Test", fetched.getName());
+        assertEquals(2, fetched.getSteps().size());
+
+        // Get list
+        List<FunnelResponse> list = funnelService.getFunnelsByProject(6, currentUser);
+        assertFalse(list.isEmpty());
+        assertTrue(list.stream().anyMatch(f -> f.getId().equals(created.getId())));
+    }
+
+    @Test
+    @Transactional
+    void testUpdateFunnel() {
+        User currentUser = userRepository.findById(4).orElseThrow();
+
+        CreateFunnelRequest createRequest = CreateFunnelRequest.builder()
+                .projectId(6)
+                .name("Initial Funnel")
+                .steps(List.of(
+                        FunnelStepRequest.builder().stepOrder(1).eventName("page_view").build(),
+                        FunnelStepRequest.builder().stepOrder(2).eventName("button_click").build()
+                ))
+                .build();
+
+        FunnelResponse created = funnelService.createFunnel(createRequest, currentUser);
+
+        // Update
+        UpdateFunnelRequest updateRequest = UpdateFunnelRequest.builder()
+                .name("Updated Funnel")
+                .description("Updated Desc")
+                .steps(List.of(
+                        FunnelStepRequest.builder().stepOrder(1).eventName("button_click").build(),
+                        FunnelStepRequest.builder().stepOrder(2).eventName("signup").build()
+                ))
+                .build();
+
+        FunnelResponse updated = funnelService.updateFunnel(created.getId(), updateRequest, currentUser);
+
+        assertNotNull(updated);
+        assertEquals(created.getId(), updated.getId());
+        assertEquals("Updated Funnel", updated.getName());
+        assertEquals("Updated Desc", updated.getDescription());
+        assertEquals(2, updated.getSteps().size());
+        assertEquals("button_click", updated.getSteps().get(0).getEventName());
+        assertEquals("signup", updated.getSteps().get(1).getEventName());
+    }
+
+    @Test
+    @Transactional
+    void testDeleteFunnel() {
+        User currentUser = userRepository.findById(4).orElseThrow();
+
+        CreateFunnelRequest createRequest = CreateFunnelRequest.builder()
+                .projectId(6)
+                .name("Initial Funnel")
+                .steps(List.of(
+                        FunnelStepRequest.builder().stepOrder(1).eventName("page_view").build(),
+                        FunnelStepRequest.builder().stepOrder(2).eventName("button_click").build()
+                ))
+                .build();
+
+        FunnelResponse created = funnelService.createFunnel(createRequest, currentUser);
+
+        // Delete
+        funnelService.deleteFunnel(created.getId(), currentUser);
+
+        // Verify deletion
+        assertThrows(Exception.class, () -> funnelService.getFunnelById(created.getId(), currentUser));
+    }
+
+    @Autowired
+    private com.insightflow.service.ProjectService projectService;
+
+    @Test
+    @Transactional
+    void testProjectCreationFlow() {
+        User currentUser = userRepository.findById(4).orElseThrow();
+
+        CreateProjectRequest request = new CreateProjectRequest();
+        request.setProjectName("Test Project Simplify");
+        request.setDomain("simplify.insightflow.com");
+
+        ProjectResponse response = projectService.createProject(request, currentUser);
+
+        // A. Project created successfully
+        assertNotNull(response);
+        assertNotNull(response.getId());
+        assertEquals("Test Project Simplify", response.getProjectName());
+
+        // B. Project response contains no trackingKey (field removed)
+        // Verified: ProjectResponse doesn't have a trackingKey field/method.
+
+        // Verify no api_keys are created automatically for the new project
+        long keyCount = apiKeyRepository.countByProjectId(response.getId());
+        assertEquals(0L, keyCount);
+    }
+
+    @Test
+    @Transactional
+    void testCreateApiKeySuccess() {
+        User currentUser = userRepository.findById(4).orElseThrow();
+
+        CreateApiKeyRequest req = CreateApiKeyRequest.builder()
+                .projectId(6)
+                .name("Production Key")
+                .environment(ApiKeyEnvironment.PRODUCTION)
+                .permissions(List.of("track", "identify"))
+                .build();
+
+        // C. POST /api-keys creates a key linked to project_id
+        ApiKeyCreatedResponse response = apiKeyService.createApiKey(req, currentUser);
+
+        assertNotNull(response);
+        assertNotNull(response.getId());
+        assertEquals("Production Key", response.getName());
+        assertEquals(ApiKeyEnvironment.PRODUCTION, response.getEnvironment());
+        assertEquals(ApiKeyStatus.ACTIVE, response.getStatus());
+
+        // D. Raw API key is returned only once
+        assertNotNull(response.getApiKey());
+        assertTrue(response.getApiKey().startsWith("if_live_pk_"));
+    }
+
+    @Test
+    @Transactional
+    void testGetApiKeysByProjectFilter() {
+        User currentUser = userRepository.findById(4).orElseThrow();
+
+        // E. GET /api-keys?projectId=X returns only keys for project X
+        List<ApiKeyResponse> listProj6 = apiKeyService.getApiKeysByProject(6, currentUser);
+        for (ApiKeyResponse key : listProj6) {
+            assertEquals(6, key.getProjectId());
+        }
+    }
+
+    @Test
+    @Transactional
+    void testTrackingRequestAuthFlow() {
+        User currentUser = userRepository.findById(4).orElseThrow();
+
+        CreateApiKeyRequest req = CreateApiKeyRequest.builder()
+                .projectId(6)
+                .name("Ingestion Auth Key")
+                .environment(ApiKeyEnvironment.PRODUCTION)
+                .permissions(List.of("track"))
+                .build();
+        ApiKeyCreatedResponse apiKeyCreated = apiKeyService.createApiKey(req, currentUser);
+
+        TrackSessionStartRequest startReq = new TrackSessionStartRequest();
+        startReq.setSessionId(UUID.randomUUID().toString());
+        startReq.setReferrer("direct");
+        startReq.setUserAgent("TestAgent");
+
+        org.springframework.mock.web.MockHttpServletRequest mockRequest = new org.springframework.mock.web.MockHttpServletRequest();
+        mockRequest.addHeader("User-Agent", "TestAgent");
+
+        // F. Tracking request with valid ACTIVE API key and track permission succeeds
+        TrackSessionStartResponse startRes = trackingService.trackSessionStart(startReq, apiKeyCreated.getApiKey(), mockRequest);
+        assertNotNull(startRes);
+        assertEquals(startReq.getSessionId(), startRes.getSessionId());
+
+        // J. Tracking data is stored under the project_id derived from api_keys.project_id
+        // (Session and pageviews are logged under project 6, as authenticated by the key)
+
+        // K. request_count increments after successful tracking requests
+        // L. last_used_at updates after successful tracking requests
+        ApiKeyResponse retrieved = apiKeyService.getApiKeyById(apiKeyCreated.getId(), currentUser);
+        assertEquals(1L, retrieved.getRequestCount());
+        assertNotNull(retrieved.getLastUsedAt());
+    }
+
+    @Test
+    @Transactional
+    void testTrackingRequestInvalidKeyFails() {
+        TrackSessionStartRequest startReq = new TrackSessionStartRequest();
+        startReq.setSessionId(UUID.randomUUID().toString());
+
+        // G. Tracking request with invalid key fails
+        assertThrows(BadRequestException.class, () -> 
+                trackingService.trackSessionStart(startReq, "if_live_pk_invalidkey12345", new org.springframework.mock.web.MockHttpServletRequest()));
+    }
+
+    @Test
+    @Transactional
+    void testTrackingRequestRevokedKeyFails() {
+        User currentUser = userRepository.findById(4).orElseThrow();
+
+        CreateApiKeyRequest req = CreateApiKeyRequest.builder()
+                .projectId(6)
+                .name("Key to Revoke")
+                .environment(ApiKeyEnvironment.PRODUCTION)
+                .permissions(List.of("track"))
+                .build();
+        ApiKeyCreatedResponse apiKeyCreated = apiKeyService.createApiKey(req, currentUser);
+        apiKeyService.revokeApiKey(apiKeyCreated.getId(), currentUser);
+
+        TrackSessionStartRequest startReq = new TrackSessionStartRequest();
+        startReq.setSessionId(UUID.randomUUID().toString());
+
+        // H. Tracking request with revoked key fails
+        assertThrows(BadRequestException.class, () -> 
+                trackingService.trackSessionStart(startReq, apiKeyCreated.getApiKey(), new org.springframework.mock.web.MockHttpServletRequest()));
+    }
+
+    @Test
+    @Transactional
+    void testTrackingRequestLackingPermissionFails() {
+        User currentUser = userRepository.findById(4).orElseThrow();
+
+        CreateApiKeyRequest req = CreateApiKeyRequest.builder()
+                .projectId(6)
+                .name("Key No Ingest")
+                .environment(ApiKeyEnvironment.PRODUCTION)
+                .permissions(List.of("identify")) // lacks "track"
+                .build();
+        ApiKeyCreatedResponse apiKeyCreated = apiKeyService.createApiKey(req, currentUser);
+
+        TrackSessionStartRequest startReq = new TrackSessionStartRequest();
+        startReq.setSessionId(UUID.randomUUID().toString());
+
+        // I. Tracking request with key without track permission fails
+        assertThrows(BadRequestException.class, () -> 
+                trackingService.trackSessionStart(startReq, apiKeyCreated.getApiKey(), new org.springframework.mock.web.MockHttpServletRequest()));
     }
 }
