@@ -15,7 +15,6 @@ public class ProjectResponse {
     private final String projectName;
     private final String domain;
     private final Integer projectStatus;
-    private final String trackingKey;
     private final LocalDateTime createdAt;
     private final LocalDateTime updatedAt;
 
@@ -26,7 +25,6 @@ public class ProjectResponse {
                 .projectName(project.getProjectName())
                 .domain(project.getDomain())
                 .projectStatus(project.getProjectStatus())
-                .trackingKey(project.getTrackingKey())
                 .createdAt(project.getCreatedAt())
                 .updatedAt(project.getUpdatedAt())
                 .build();
