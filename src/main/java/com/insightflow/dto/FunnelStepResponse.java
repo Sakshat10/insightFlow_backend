@@ -1,16 +1,30 @@
 package com.insightflow.dto;
 
-import lombok.Builder;
-import lombok.Getter;
+import com.insightflow.entity.FunnelStep;
+import lombok.*;
+import java.time.LocalDateTime;
 
 @Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
 @Builder
 public class FunnelStepResponse {
-    private final int step;
-    private final String eventName;
-    private final long sessions;
-    private final double conversionFromPrevious;
-    private final double conversionFromEntry;
-    private final long dropOffSessions;
-    private final double dropOffRate;
+
+    private Integer id;
+    private Integer stepOrder;
+    private String eventName;
+    private LocalDateTime createdAt;
+
+    public static FunnelStepResponse from(FunnelStep step) {
+        if (step == null) {
+            return null;
+        }
+        return FunnelStepResponse.builder()
+                .id(step.getId())
+                .stepOrder(step.getStepOrder())
+                .eventName(step.getEventName())
+                .createdAt(step.getCreatedAt())
+                .build();
+    }
 }
