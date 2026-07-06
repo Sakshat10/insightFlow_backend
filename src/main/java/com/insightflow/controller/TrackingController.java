@@ -24,12 +24,12 @@ public class TrackingController {
         this.trackingService = trackingService;
     }
 
-    @GetMapping(value = "/script/{trackingKey}", produces = MediaType.TEXT_PLAIN_VALUE)
+    @GetMapping(value = "/script", produces = MediaType.TEXT_PLAIN_VALUE)
     @Operation(summary = "Get the embeddable JavaScript tracking snippet for a project")
     public ResponseEntity<String> getTrackingScript(
-            @PathVariable String trackingKey,
+            @RequestParam("key") String apiKey,
             HttpServletRequest request) {
-        String script = trackingService.getTrackingScript(trackingKey, request);
+        String script = trackingService.getTrackingScript(apiKey, request);
         return ResponseEntity.ok()
                 .contentType(MediaType.valueOf("application/javascript"))
                 .body(script);
@@ -39,8 +39,9 @@ public class TrackingController {
     @Operation(summary = "Record session start")
     public ResponseEntity<ApiResponse<TrackSessionStartResponse>> sessionStart(
             @Valid @RequestBody TrackSessionStartRequest request,
+            @RequestHeader(value = "X-API-Key", required = false) String apiKey,
             HttpServletRequest httpRequest) {
-        TrackSessionStartResponse response = trackingService.trackSessionStart(request, httpRequest);
+        TrackSessionStartResponse response = trackingService.trackSessionStart(request, apiKey, httpRequest);
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.success("Session started", response));
     }
@@ -48,8 +49,9 @@ public class TrackingController {
     @PostMapping("/session-end")
     @Operation(summary = "Record session end")
     public ResponseEntity<ApiResponse<Void>> sessionEnd(
-            @Valid @RequestBody TrackSessionEndRequest request) {
-        trackingService.trackSessionEnd(request);
+            @Valid @RequestBody TrackSessionEndRequest request,
+            @RequestHeader(value = "X-API-Key", required = false) String apiKey) {
+        trackingService.trackSessionEnd(request, apiKey);
         return ResponseEntity.ok(ApiResponse.success("Session ended"));
     }
 
@@ -57,8 +59,9 @@ public class TrackingController {
     @Operation(summary = "Record a page view")
     public ResponseEntity<ApiResponse<PageViewResponse>> trackPageView(
             @Valid @RequestBody TrackPageViewRequest request,
+            @RequestHeader(value = "X-API-Key", required = false) String apiKey,
             HttpServletRequest httpRequest) {
-        PageViewResponse response = trackingService.trackPageView(request, httpRequest);
+        PageViewResponse response = trackingService.trackPageView(request, apiKey, httpRequest);
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.success("Page view recorded", response));
     }
@@ -67,8 +70,9 @@ public class TrackingController {
     @Operation(summary = "Record a custom event")
     public ResponseEntity<ApiResponse<EventResponse>> trackEvent(
             @Valid @RequestBody TrackEventRequest request,
+            @RequestHeader(value = "X-API-Key", required = false) String apiKey,
             HttpServletRequest httpRequest) {
-        EventResponse response = trackingService.trackEvent(request, httpRequest);
+        EventResponse response = trackingService.trackEvent(request, apiKey, httpRequest);
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.success("Event recorded", response));
     }
