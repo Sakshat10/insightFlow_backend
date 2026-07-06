@@ -39,16 +39,20 @@ public class PageViewService {
     public PageViewResponse createPageView(CreatePageViewRequest request,
                                            User currentUser) {
 
-        Project project = projectRepository.findByTrackingKey(request.getTrackingKey())
+        Session session = sessionRepository.findById(request.getSessionId())
+                .orElseThrow(() -> new BadRequestException("Session does not exist."));
+
+        Project project = projectRepository.findById(session.getProjectId())
                 .orElseThrow(() ->
-                        new BadRequestException("Invalid tracking key."));
+                        new BadRequestException("Project does not exist."));
+
+        if (!project.getUserId().equals(currentUser.getId())) {
+            throw new ForbiddenException("You do not have permission to access this project");
+        }
 
         if (!project.getProjectStatus().equals(ProjectConstants.ACTIVE)) {
             throw new BadRequestException("Project is inactive.");
         }
-
-        Session session = sessionRepository.findById(request.getSessionId())
-                .orElseThrow(() -> new BadRequestException("Session does not exist."));
 
         PageView pageView = PageView.builder()
                 .sessionId(session.getId())
