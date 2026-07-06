@@ -11,5 +11,5 @@ public class FunnelAnalyticsResponse {
     private final long totalConvertedSessions;
     private final double overallConversionRate;
     private final Integer biggestDropOffStep;
-    private final List<FunnelStepResponse> steps;
+    private final List<FunnelStepAnalyticsResponse> steps;
 }
