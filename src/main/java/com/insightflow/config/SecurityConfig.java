@@ -47,7 +47,7 @@ public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Excepti
         .authorizeHttpRequests(auth -> auth
             .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll() // <-- ADD THIS
             .requestMatchers("/auth/**").permitAll()
-            .requestMatchers(HttpMethod.GET, "/tracking/script/**").permitAll()
+            .requestMatchers(HttpMethod.GET, "/tracking/script", "/tracking/script/**").permitAll()
             .requestMatchers(
                     HttpMethod.POST,
                     "/tracking/page-view",
