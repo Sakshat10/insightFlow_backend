@@ -47,14 +47,11 @@ public class ProjectService {
             throw new BadRequestException("A project with this domain already exists.");
         }
 
-        String trackingKey = generateTrackingKey();
-
         Project project = Project.builder()
                 .userId(currentUser.getId())
                 .projectName(request.getProjectName())
                 .domain(request.getDomain())
                 .projectStatus(ProjectConstants.ACTIVE)
-                .trackingKey(trackingKey)
                 .build();
 
         project = projectRepository.save(project);
@@ -276,29 +273,5 @@ public class ProjectService {
                     "You do not have permission to access this project"
             );
         }
-    }
-
-    private String generateTrackingKey() {
-
-        SecureRandom random = new SecureRandom();
-
-        byte[] bytes = new byte[16];
-
-        random.nextBytes(bytes);
-
-        String key =
-                AppConstants.TOKEN_PREFIX +
-                        HexFormat.of().formatHex(bytes);
-
-        while (projectRepository.existsByTrackingKey(key)) {
-
-            random.nextBytes(bytes);
-
-            key =
-                    AppConstants.TOKEN_PREFIX +
-                            HexFormat.of().formatHex(bytes);
-        }
-
-        return key;
     }
 }
