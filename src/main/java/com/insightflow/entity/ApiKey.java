@@ -10,7 +10,13 @@ import java.time.LocalDateTime;
 @AllArgsConstructor
 @Builder
 @Entity
-@Table(name = "api_keys")
+@Table(
+    name = "api_keys",
+    indexes = {
+        @Index(name = "idx_api_keys_key_hash", columnList = "key_hash", unique = true),
+        @Index(name = "idx_api_keys_project_id", columnList = "project_id")
+    }
+)
 public class ApiKey extends BaseEntity {
 
     @Id
