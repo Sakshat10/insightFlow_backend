@@ -2,6 +2,7 @@ package com.insightflow.service;
 
 import com.insightflow.constants.ProjectConstants;
 import com.insightflow.dto.*;
+import com.insightflow.entity.ApiKey;
 import com.insightflow.entity.Event;
 import com.insightflow.entity.PageView;
 import com.insightflow.entity.Project;
@@ -27,41 +28,41 @@ public class TrackingService {
     private final SessionRepository sessionRepository;
     private final PageViewRepository pageViewRepository;
     private final EventRepository eventRepository;
+    private final ApiKeyValidationService apiKeyValidationService;
 
     public TrackingService(ProjectRepository projectRepository,
                            SessionRepository sessionRepository,
                            PageViewRepository pageViewRepository,
-                           EventRepository eventRepository) {
+                           EventRepository eventRepository,
+                           ApiKeyValidationService apiKeyValidationService) {
         this.projectRepository = projectRepository;
         this.sessionRepository = sessionRepository;
         this.pageViewRepository = pageViewRepository;
         this.eventRepository = eventRepository;
+        this.apiKeyValidationService = apiKeyValidationService;
     }
 
-    public String getTrackingScript(String trackingKey, HttpServletRequest request) {
-        Project project = projectRepository.findByTrackingKey(trackingKey)
-                .orElseThrow(() -> new BadRequestException("Invalid tracking key."));
-
-        if (!project.getProjectStatus().equals(ProjectConstants.ACTIVE)) {
-            throw new BadRequestException("Project is inactive.");
-        }
+    public String getTrackingScript(String apiKey, HttpServletRequest request) {
+        ApiKey validatedKey = apiKeyValidationService.validateAndIncrement(apiKey, "track");
+        Project project = projectRepository.findById(validatedKey.getProjectId())
+                .orElseThrow(() -> new BadRequestException("Project does not exist."));
 
         String baseUrl = request.getScheme() + "://" + request.getServerName()
                 + (request.getServerPort() != 80 && request.getServerPort() != 443
                 ? ":" + request.getServerPort() : "");
 
-        return buildTrackingScript(trackingKey, baseUrl);
+        return buildTrackingScript(apiKey, baseUrl);
     }
 
     @Transactional
     public TrackSessionStartResponse trackSessionStart(TrackSessionStartRequest req,
-                                                        HttpServletRequest httpRequest) {
-        Project project = resolveProject(req.getTrackingKey());
+                                                       String apiKeyHeader,
+                                                       HttpServletRequest httpRequest) {
+        Project project = resolveProject(apiKeyHeader, "track");
 
         if (sessionRepository.findBySessionId(req.getSessionId()).isPresent()) {
             return TrackSessionStartResponse.builder()
                     .sessionId(req.getSessionId())
-                    .trackingKey(req.getTrackingKey())
                     .build();
         }
 
@@ -71,52 +72,62 @@ public class TrackingService {
         String deviceType = detectDeviceType(userAgent);
         String browser = detectBrowser(userAgent);
 
-      Session session = Session.builder()
-        .projectId(project.getId())
-        .sessionId(req.getSessionId())
-        .ipAddress(ipAddress)
-        .deviceType(deviceType)
-        .browser(browser)
-        .referrer(req.getReferrer())
-        .startedAt(LocalDateTime.now())
-        .isBounce(true)
-        .build();
+        Session session = Session.builder()
+                .projectId(project.getId())
+                .sessionId(req.getSessionId())
+                .ipAddress(ipAddress)
+                .deviceType(deviceType)
+                .browser(browser)
+                .country("Unknown")
+                .referrer(req.getReferrer())
+                .startedAt(LocalDateTime.now())
+                .isBounce(true)
+                .build();
         sessionRepository.save(session);
         log.debug("Session started: {} for project {}", req.getSessionId(), project.getId());
 
         return TrackSessionStartResponse.builder()
                 .sessionId(req.getSessionId())
-                .trackingKey(req.getTrackingKey())
                 .build();
     }
 
     @Transactional
-    public void trackSessionEnd(TrackSessionEndRequest req) {
-       Session session = sessionRepository
-        .findBySessionId(req.getSessionId())
-        .orElse(null);
+    public void trackSessionEnd(TrackSessionEndRequest req, String apiKeyHeader) {
+        Project project = resolveProject(apiKeyHeader, "track");
+
+        Session session = sessionRepository
+                .findBySessionId(req.getSessionId())
+                .orElse(null);
 
         if (session == null) {
             log.warn("Session not found for end event: {}", req.getSessionId());
             return;
         }
 
+        if (!session.getProjectId().equals(project.getId())) {
+            throw new BadRequestException("Session does not belong to this project.");
+        }
+
         session.setEndedAt(LocalDateTime.now());
         if (req.getDuration() != null) {
             session.setDuration(req.getDuration());
         }
-       session.setIsBounce(false);
+        session.setIsBounce(false);
         sessionRepository.save(session);
     }
 
     @Transactional
-    public PageViewResponse trackPageView(TrackPageViewRequest req, HttpServletRequest httpRequest) {
-        Project project = resolveProject(req.getTrackingKey());
+    public PageViewResponse trackPageView(TrackPageViewRequest req, String apiKeyHeader, HttpServletRequest httpRequest) {
+        Project project = resolveProject(apiKeyHeader, "track");
         String ipAddress = extractIpAddress(httpRequest);
         String userAgent = httpRequest.getHeader("User-Agent");
 
         Session session = sessionRepository.findById(req.getSessionId())
                 .orElseThrow(() -> new BadRequestException("Session does not exist."));
+
+        if (!session.getProjectId().equals(project.getId())) {
+            throw new BadRequestException("Session does not belong to this project.");
+        }
 
         PageView pv = PageView.builder()
                 .sessionId(session.getId())
@@ -125,24 +136,22 @@ public class TrackingService {
                 .referrer(req.getReferrer())
                 .build();
         pv = pageViewRepository.save(pv);
-log.debug(
-        "PageView tracked: {} for session {}",
-        req.getUrl(),
-        req.getSessionId()
-);
+        log.debug(
+                "PageView tracked: {} for session {}",
+                req.getUrl(),
+                req.getSessionId()
+        );
         return PageViewResponse.from(pv);
     }
 
     @Transactional
-    public EventResponse trackEvent(TrackEventRequest req, HttpServletRequest httpRequest) {
+    public EventResponse trackEvent(TrackEventRequest req, String apiKeyHeader, HttpServletRequest httpRequest) {
         Session session = sessionRepository.findById(req.getSessionId())
                 .orElseThrow(() -> new BadRequestException("Session does not exist."));
 
-        Project project = projectRepository.findById(session.getProjectId())
-                .orElseThrow(() -> new BadRequestException("Project does not exist."));
-
-        if (!project.getProjectStatus().equals(ProjectConstants.ACTIVE)) {
-            throw new BadRequestException("Project is inactive.");
+        Project project = resolveProject(apiKeyHeader, "track");
+        if (!session.getProjectId().equals(project.getId())) {
+            throw new BadRequestException("Session does not belong to this project.");
         }
 
         Event event = Event.builder()
@@ -161,17 +170,14 @@ log.debug(
         return EventResponse.from(event);
     }
 
-  private Project resolveProject(String trackingKey) {
-
-    Project project = projectRepository.findByTrackingKey(trackingKey)
-            .orElseThrow(() -> new BadRequestException("Invalid tracking key."));
-
-    if (!project.getProjectStatus().equals(ProjectConstants.ACTIVE)) {
-        throw new BadRequestException("Project is inactive.");
+    private Project resolveProject(String apiKeyHeader, String requiredPermission) {
+        if (apiKeyHeader == null || apiKeyHeader.isBlank()) {
+            throw new BadRequestException("API key is required");
+        }
+        ApiKey apiKey = apiKeyValidationService.validateAndIncrement(apiKeyHeader, requiredPermission);
+        return projectRepository.findById(apiKey.getProjectId())
+                .orElseThrow(() -> new BadRequestException("Project does not exist."));
     }
-
-    return project;
-}
 
     private String extractIpAddress(HttpServletRequest request) {
         String xForwardedFor = request.getHeader("X-Forwarded-For");
@@ -204,11 +210,11 @@ log.debug(
         return "Other";
     }
 
-    private String buildTrackingScript(String trackingKey, String baseUrl) {
+    private String buildTrackingScript(String apiKey, String baseUrl) {
         return """
                 (function() {
                   var IF = window.InsightFlow = window.InsightFlow || {};
-                  IF.trackingKey = '%s';
+                  IF.apiKey = '%s';
                   IF.baseUrl = '%s';
                   IF.sessionId = localStorage.getItem('if_sid') || generateId();
                   localStorage.setItem('if_sid', IF.sessionId);
@@ -218,14 +224,16 @@ log.debug(
                   }
 
                   function send(endpoint, data) {
-                    var payload = Object.assign({ trackingKey: IF.trackingKey, sessionId: IF.sessionId }, data);
-                    var blob = new Blob([JSON.stringify(payload)], { type: 'application/json' });
-                    if (navigator.sendBeacon) {
-                      navigator.sendBeacon(IF.baseUrl + endpoint, blob);
-                    } else {
-                      fetch(IF.baseUrl + endpoint, { method: 'POST', body: JSON.stringify(payload),
-                        headers: { 'Content-Type': 'application/json' }, keepalive: true });
-                    }
+                    var payload = Object.assign({ sessionId: IF.sessionId }, data);
+                    fetch(IF.baseUrl + endpoint, { 
+                      method: 'POST', 
+                      body: JSON.stringify(payload),
+                      headers: { 
+                        'Content-Type': 'application/json',
+                        'X-API-Key': IF.apiKey 
+                      }, 
+                      keepalive: true 
+                    });
                   }
 
                   send('/tracking/session-start', { referrer: document.referrer, userAgent: navigator.userAgent });
@@ -242,6 +250,6 @@ log.debug(
                       properties: properties ? JSON.stringify(properties) : null });
                   };
                 })();
-                """.formatted(trackingKey, baseUrl);
+                """.formatted(apiKey, baseUrl);
     }
 }
