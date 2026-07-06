@@ -338,7 +338,7 @@ private void validateProjectAccess(Integer projectId, User currentUser) {
             }
         }
 
-        List<FunnelStepResponse> stepResponses = new ArrayList<>();
+        List<FunnelStepAnalyticsResponse> stepResponses = new ArrayList<>();
         long firstStepSessions = stepCounts[0];
 
         for (int i = 0; i < numSteps; i++) {
@@ -371,7 +371,7 @@ private void validateProjectAccess(Integer projectId, User currentUser) {
                 dropOffRate = Math.round(dropOffRate * 100.0) / 100.0;
             }
 
-            stepResponses.add(FunnelStepResponse.builder()
+            stepResponses.add(FunnelStepAnalyticsResponse.builder()
                     .step(i + 1)
                     .eventName(normalizedSteps.get(i))
                     .sessions(currentStepSessions)
