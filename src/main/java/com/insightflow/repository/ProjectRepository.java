@@ -27,10 +27,6 @@ public interface ProjectRepository extends JpaRepository<Project, Integer> {
 
     Optional<Project> findById(Integer id);
 
-    Optional<Project> findByTrackingKey(String trackingKey);
-
-    boolean existsByTrackingKey(String trackingKey);
-
     boolean existsByDomain(String domain);
 
     long countByUserId(Integer userId);
