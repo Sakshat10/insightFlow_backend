@@ -38,10 +38,13 @@ public class SessionService {
     public SessionResponse createSession(CreateSessionRequest request,
                                          User currentUser) {
 
-        Project project = projectRepository.findByTrackingKey(
-                        request.getTrackingKey())
+        Project project = projectRepository.findById(request.getProjectId())
                 .orElseThrow(() ->
-                        new BadRequestException("Invalid tracking key."));
+                        new BadRequestException("Invalid project ID."));
+
+        if (!project.getUserId().equals(currentUser.getId())) {
+            throw new ForbiddenException("You do not have permission to access this project");
+        }
 
         if (!project.getProjectStatus().equals(ProjectConstants.ACTIVE)) {
             throw new BadRequestException("Project is inactive.");
