@@ -9,9 +9,6 @@ import lombok.Setter;
 @Setter
 public class TrackPageViewRequest {
 
-    @NotBlank(message = "Tracking key is required")
-    private String trackingKey;
-
     private Long sessionId;
 
     private String url;
