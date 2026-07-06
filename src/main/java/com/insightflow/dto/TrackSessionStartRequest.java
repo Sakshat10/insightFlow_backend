@@ -9,9 +9,6 @@ import lombok.Setter;
 @Setter
 public class TrackSessionStartRequest {
 
-    @NotBlank(message = "Tracking key is required")
-    private String trackingKey;
-
     @NotBlank(message = "Session ID is required")
     @Size(max = 128)
     private String sessionId;
