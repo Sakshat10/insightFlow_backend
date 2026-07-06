@@ -9,8 +9,8 @@ import lombok.Setter;
 @Setter
 public class CreateSessionRequest {
 
-    @NotBlank(message = "Tracking key is required")
-    private String trackingKey;
+    @jakarta.validation.constraints.NotNull(message = "Project ID is required")
+    private Integer projectId;
 
     @NotBlank(message = "Session ID is required")
     @Size(max = 128)
