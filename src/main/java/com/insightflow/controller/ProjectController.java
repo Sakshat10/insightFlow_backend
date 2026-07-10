@@ -69,12 +69,31 @@ public class ProjectController {
     }
 
     @DeleteMapping("/{id}")
-    @Operation(summary = "Soft-delete project")
-    public ResponseEntity<ApiResponse<ProjectResponse>> deleteProject(
+    @Operation(summary = "Delete project and all associated data")
+    public ResponseEntity<ApiResponse<Void>> deleteProject(
             @PathVariable Integer id,
             @AuthenticationPrincipal User currentUser) {
-        ProjectResponse response = projectService.deleteProject(id, currentUser);
-        return ResponseEntity.ok(ApiResponse.success("Project deleted successfully", response));
+        projectService.deleteProject(id, currentUser);
+        return ResponseEntity.ok(ApiResponse.success("Project deleted successfully"));
+    }
+
+    @GetMapping("/{id}/settings")
+    @Operation(summary = "Get project settings by project ID")
+    public ResponseEntity<ApiResponse<ProjectSettingsResponse>> getProjectSettings(
+            @PathVariable("id") Integer projectId,
+            @AuthenticationPrincipal User currentUser) {
+        ProjectSettingsResponse response = projectService.getProjectSettings(projectId, currentUser);
+        return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
+    @PutMapping("/{id}/settings")
+    @Operation(summary = "Update project settings by project ID")
+    public ResponseEntity<ApiResponse<ProjectSettingsResponse>> updateProjectSettings(
+            @PathVariable("id") Integer projectId,
+            @Valid @RequestBody ProjectSettingsRequest request,
+            @AuthenticationPrincipal User currentUser) {
+        ProjectSettingsResponse response = projectService.updateProjectSettings(projectId, request, currentUser);
+        return ResponseEntity.ok(ApiResponse.success("Project settings updated successfully", response));
     }
 
     @PutMapping("/{id}/restore")
