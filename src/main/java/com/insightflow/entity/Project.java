@@ -34,4 +34,31 @@ public class Project extends BaseEntity {
     @Column(name = "project_status", nullable = false)
     @Builder.Default
     private Integer projectStatus = 1;
+
+    @Column(name = "industry", length = 100)
+    private String industry;
+
+    @Column(name = "timezone", length = 100)
+    @Builder.Default
+    private String timezone = "UTC";
+
+    @Column(name = "pageview_tracking")
+    @Builder.Default
+    private Boolean pageviewTracking = true;
+
+    @Column(name = "session_recording")
+    @Builder.Default
+    private Boolean sessionRecording = false;
+
+    @Column(name = "ip_anonymization")
+    @Builder.Default
+    private Boolean ipAnonymization = true;
+
+    @Column(name = "bot_filtering")
+    @Builder.Default
+    private Boolean botFiltering = true;
+
+    @Column(name = "cross_domain_tracking")
+    @Builder.Default
+    private Boolean crossDomainTracking = false;
 }
