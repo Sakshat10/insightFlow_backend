@@ -13,6 +13,9 @@ import java.time.LocalDateTime;
 @Entity
 @Table(
     name = "sessions",
+    uniqueConstraints = {
+        @UniqueConstraint(name = "uq_project_session", columnNames = {"project_id", "session_id"})
+    },
     indexes = {
         @Index(name = "idx_sessions_project_id", columnList = "project_id"),
         @Index(name = "idx_sessions_visitor_id", columnList = "visitor_id"),
@@ -28,7 +31,10 @@ public class Session extends BaseEntity {
     @Column(name = "project_id", nullable = false)
     private Integer projectId;
 
-    @Column(name = "visitor_id", nullable = false, unique = true, length = 255)
+    @Column(name = "visitor_id", nullable = false, length = 255)
+    private String visitorId;
+
+    @Column(name = "session_id", nullable = false, length = 255)
     private String sessionId;
 
     @Column(name = "ip_address", length = 45)
@@ -51,6 +57,9 @@ public class Session extends BaseEntity {
 
     @Column(name = "referrer", columnDefinition = "TEXT")
     private String referrer;
+
+    @Column(name = "entry_referrer", length = 2048)
+    private String entryReferrer;
 
     @Column(name = "started_at")
     private LocalDateTime startedAt;
