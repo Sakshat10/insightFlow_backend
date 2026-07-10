@@ -2,6 +2,7 @@ package com.insightflow.repository;
 
 import com.insightflow.entity.Funnel;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import java.util.List;
@@ -24,4 +25,8 @@ public interface FunnelRepository extends JpaRepository<Funnel, Integer> {
             WHERE f.id = :id
             """)
     Optional<Funnel> findByIdWithSteps(@Param("id") Integer id);
+
+    @Modifying
+    @Query("DELETE FROM Funnel f WHERE f.projectId = :projectId")
+    void deleteByProjectId(@Param("projectId") Integer projectId);
 }
