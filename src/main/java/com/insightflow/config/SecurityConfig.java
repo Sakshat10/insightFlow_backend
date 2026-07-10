@@ -44,61 +44,130 @@ public class SecurityConfig {
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
 
         http
+                /*
+                 * Enable CORS.
+                 *
+                 * Spring Security will use the CorsConfigurationSource
+                 * bean defined in CorsConfig.java.
+                 *
+                 * DO NOT define another CorsConfigurationSource bean here.
+                 */
                 .cors(Customizer.withDefaults())
+
+                /*
+                 * Disable CSRF because this backend uses stateless
+                 * JWT authentication.
+                 */
                 .csrf(AbstractHttpConfigurer::disable)
 
-                .exceptionHandling(ex ->
-                        ex.authenticationEntryPoint(jwtAuthEntryPoint)
+                /*
+                 * Return our custom 401 response when authentication fails.
+                 */
+                .exceptionHandling(exception ->
+                        exception.authenticationEntryPoint(jwtAuthEntryPoint)
                 )
 
                 .authorizeHttpRequests(auth -> auth
 
-                        // Allow all preflight requests
-                        .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+                        /*
+                         * Allow browser CORS preflight requests.
+                         */
+                        .requestMatchers(HttpMethod.OPTIONS, "/**")
+                        .permitAll()
 
-                        // Public Authentication APIs
-                        .requestMatchers("/auth/**").permitAll()
+                        /*
+                         * Public authentication endpoints.
+                         */
+                        .requestMatchers("/auth/**")
+                        .permitAll()
 
-                        // Tracking Script
+                        /*
+                         * Public tracking script endpoint.
+                         */
                         .requestMatchers(
                                 HttpMethod.GET,
                                 "/tracking/script",
                                 "/tracking/script/**"
-                        ).permitAll()
+                        )
+                        .permitAll()
 
-                        // Tracking APIs
+                        /*
+                         * Public analytics ingestion endpoints.
+                         *
+                         * These endpoints must remain public because tracked
+                         * websites send analytics data without dashboard JWTs.
+                         *
+                         * Project identification/authentication should be
+                         * performed using the tracking ID/API key inside the
+                         * TrackingService layer.
+                         */
                         .requestMatchers(
                                 HttpMethod.POST,
                                 "/tracking/page-view",
                                 "/tracking/event",
                                 "/tracking/session-start",
                                 "/tracking/session-end"
-                        ).permitAll()
+                        )
+                        .permitAll()
 
-                        // Swagger
+                        /*
+                         * Public Swagger / OpenAPI documentation.
+                         */
                         .requestMatchers(
                                 "/swagger-ui/**",
                                 "/swagger-ui.html",
                                 "/v3/api-docs/**"
-                        ).permitAll()
+                        )
+                        .permitAll()
 
-                        // Protected APIs
+                        /*
+                         * User APIs.
+                         */
                         .requestMatchers("/users/**")
                         .hasAnyRole("USER", "ADMIN")
 
+                        /*
+                         * Admin APIs.
+                         */
                         .requestMatchers("/admin/**")
                         .hasRole("ADMIN")
 
+                        /*
+                         * Everything else requires a valid JWT.
+                         *
+                         * This protects:
+                         * /projects/**
+                         * /analytics/**
+                         * /events/**
+                         * /conversion-goals/**
+                         * /funnels/**
+                         * /live-activity/**
+                         * and future endpoints by default.
+                         */
                         .anyRequest()
                         .authenticated()
                 )
 
+                /*
+                 * Stateless authentication.
+                 *
+                 * Spring Security will not create HTTP sessions.
+                 */
                 .sessionManagement(session ->
-                        session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
+                        session.sessionCreationPolicy(
+                                SessionCreationPolicy.STATELESS
+                        )
                 )
 
+                /*
+                 * Authentication provider used by login authentication.
+                 */
                 .authenticationProvider(authenticationProvider())
 
+                /*
+                 * Execute JWT validation before Spring Security's
+                 * username/password authentication filter.
+                 */
                 .addFilterBefore(
                         jwtAuthenticationFilter,
                         UsernamePasswordAuthenticationFilter.class
@@ -106,6 +175,7 @@ public class SecurityConfig {
 
         return http.build();
     }
+
     @Bean
     public AuthenticationProvider authenticationProvider() {
 
