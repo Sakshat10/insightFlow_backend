@@ -9,7 +9,7 @@ import lombok.Setter;
 @Setter
 public class TrackEventRequest {
 
-    private Long sessionId;
+    private String sessionId;
 
     @NotBlank(message = "Event name is required")
     @Size(max = 100)
