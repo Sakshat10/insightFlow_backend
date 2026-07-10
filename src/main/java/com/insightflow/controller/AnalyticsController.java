@@ -67,12 +67,14 @@ public class AnalyticsController {
 
     @GetMapping("/events")
     @Operation(summary = "Get event analytics by event name")
-    public ResponseEntity<ApiResponse<List<StatEntry>>> getEventAnalytics(
+    public ResponseEntity<ApiResponse<List<EventAnalyticsResponse>>> getEventAnalytics(
             @RequestParam Integer projectId,
+            @RequestParam(required = false) LocalDate from,
+            @RequestParam(required = false) LocalDate to,
             @RequestParam(defaultValue = "10") int limit,
             @AuthenticationPrincipal User currentUser) {
         return ResponseEntity.ok(ApiResponse.success(
-                analyticsService.getEventAnalytics(projectId, limit, currentUser)));
+                analyticsService.getEventAnalytics(projectId, from, to, limit, currentUser)));
     }
 
     @GetMapping("/sessions")
@@ -130,5 +132,26 @@ public class AnalyticsController {
             @AuthenticationPrincipal User currentUser) {
         return ResponseEntity.ok(ApiResponse.success(
                 analyticsService.getFunnel(projectId, from, to, steps, currentUser)));
+    }
+
+    @GetMapping("/traffic-sources")
+    @Operation(summary = "Get traffic sources by acquisition source")
+    public ResponseEntity<ApiResponse<TrafficSourcesResponse>> getTrafficSources(
+            @RequestParam Integer projectId,
+            @RequestParam LocalDate from,
+            @RequestParam LocalDate to,
+            @AuthenticationPrincipal User currentUser) {
+        return ResponseEntity.ok(ApiResponse.success(
+                analyticsService.getTrafficSources(projectId, from, to, currentUser)));
+    }
+
+    @GetMapping("/conversions")
+    @Operation(summary = "Get daily conversion statistics for a project")
+    public ResponseEntity<ApiResponse<List<DailyConversionResponse>>> getDailyConversions(
+            @RequestParam Integer projectId,
+            @RequestParam(required = false) Integer days,
+            @AuthenticationPrincipal User currentUser) {
+        return ResponseEntity.ok(ApiResponse.success(
+                analyticsService.getDailyConversions(projectId, days, currentUser)));
     }
 }
