@@ -4,6 +4,7 @@ import com.insightflow.entity.Session;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -24,6 +25,12 @@ public interface SessionRepository extends JpaRepository<Session, Long> {
     long countByProjectIdAndStartedAtAfter(
             @Param("projectId") Integer projectId,
             @Param("since") LocalDateTime since);
+
+    @Query("SELECT COUNT(s) FROM Session s WHERE s.projectId = :projectId AND s.startedAt BETWEEN :from AND :to")
+    long countByProjectIdAndStartedAtBetween(
+            @Param("projectId") Integer projectId,
+            @Param("from") LocalDateTime from,
+            @Param("to") LocalDateTime to);
 
     @Query("SELECT COUNT(DISTINCT s.ipAddress) FROM Session s WHERE s.projectId = :projectId")
     long countDistinctIpByProjectId(@Param("projectId") Integer projectId);
@@ -81,6 +88,21 @@ public interface SessionRepository extends JpaRepository<Session, Long> {
             ORDER BY CAST(s.startedAt AS date)
             """)
     List<Object[]> dailySessionsByProjectId(
+            @Param("projectId") Integer projectId,
+            @Param("from") LocalDateTime from,
+            @Param("to") LocalDateTime to);
+
+    @Modifying
+    @Query("DELETE FROM Session s WHERE s.projectId = :projectId")
+    void deleteByProjectId(@Param("projectId") Integer projectId);
+
+    @Query("""
+            SELECT s.entryReferrer, s.visitorId
+            FROM Session s
+            WHERE s.projectId = :projectId
+              AND s.startedAt BETWEEN :from AND :to
+            """)
+    List<Object[]> findEntryReferrersAndVisitorsByProjectIdAndStartedAtBetween(
             @Param("projectId") Integer projectId,
             @Param("from") LocalDateTime from,
             @Param("to") LocalDateTime to);
