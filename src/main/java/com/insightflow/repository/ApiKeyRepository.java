@@ -25,4 +25,8 @@ public interface ApiKeyRepository extends JpaRepository<ApiKey, Integer> {
     @Modifying(clearAutomatically = true)
     @Query("UPDATE ApiKey a SET a.requestCount = a.requestCount + 1, a.lastUsedAt = CURRENT_TIMESTAMP WHERE a.id = :id AND a.status = 'ACTIVE'")
     int incrementRequestCount(@Param("id") Integer id);
+
+    @Modifying
+    @Query("DELETE FROM ApiKey a WHERE a.projectId = :projectId")
+    void deleteByProjectId(@Param("projectId") Integer projectId);
 }
