@@ -13,6 +13,10 @@ public class TrackSessionStartRequest {
     @Size(max = 128)
     private String sessionId;
 
+    @NotBlank(message = "Visitor ID is required")
+    @Size(max = 128)
+    private String visitorId;
+
     private String referrer;
 
     private String userAgent;
