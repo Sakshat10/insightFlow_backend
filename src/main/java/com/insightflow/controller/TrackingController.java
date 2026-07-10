@@ -24,14 +24,20 @@ public class TrackingController {
         this.trackingService = trackingService;
     }
 
-    @GetMapping(value = "/script", produces = MediaType.TEXT_PLAIN_VALUE)
+    @GetMapping(value = {"/script", "/script/{apiKey}"}, produces = MediaType.TEXT_PLAIN_VALUE)
     @Operation(summary = "Get the embeddable JavaScript tracking snippet for a project")
     public ResponseEntity<String> getTrackingScript(
-            @RequestParam("key") String apiKey,
+            @PathVariable(value = "apiKey", required = false) String pathApiKey,
+            @RequestParam(value = "key", required = false) String paramApiKey,
             HttpServletRequest request) {
+        String apiKey = pathApiKey != null ? pathApiKey : paramApiKey;
+        if (apiKey == null || apiKey.isBlank()) {
+            return ResponseEntity.badRequest().body("/* API Key is required */");
+        }
         String script = trackingService.getTrackingScript(apiKey, request);
         return ResponseEntity.ok()
-                .contentType(MediaType.valueOf("application/javascript"))
+                .contentType(MediaType.valueOf("application/javascript; charset=UTF-8"))
+                .header("Cache-Control", "private, no-store")
                 .body(script);
     }
 
