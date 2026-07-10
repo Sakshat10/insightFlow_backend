@@ -7,4 +7,8 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 public interface FunnelStepRepository extends JpaRepository<FunnelStep, Integer> {
+
+    @Modifying
+    @Query("DELETE FROM FunnelStep fs WHERE fs.funnelId IN (SELECT f.id FROM Funnel f WHERE f.projectId = :projectId)")
+    void deleteByProjectId(@Param("projectId") Integer projectId);
 }
