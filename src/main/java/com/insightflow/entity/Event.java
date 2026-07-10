@@ -45,5 +45,6 @@ public class Event extends BaseEntity {
     private String properties;
 
     @Column(name = "is_conversion")
-    private Boolean isConversion;
+    @Builder.Default
+    private Boolean isConversion = false;
 }
