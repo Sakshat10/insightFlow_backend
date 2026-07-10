@@ -9,7 +9,7 @@ import lombok.Setter;
 @Setter
 public class TrackPageViewRequest {
 
-    private Long sessionId;
+    private String sessionId;
 
     private String url;
 
