@@ -4,6 +4,7 @@ import com.insightflow.dto.PageViewProjection;
 import com.insightflow.entity.PageView;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -79,4 +80,19 @@ public interface PageViewRepository extends JpaRepository<PageView, Long> {
             @Param("projectId") Integer projectId,
             @Param("from") LocalDateTime from,
             @Param("to") LocalDateTime to);
+
+    @Modifying
+    @Query(value = "DELETE FROM page_views WHERE session_id IN (SELECT id FROM sessions WHERE project_id = :projectId)", nativeQuery = true)
+    void deleteByProjectId(@Param("projectId") Integer projectId);
+
+    @Query("""
+            SELECT pv
+            FROM PageView pv
+            JOIN Session s ON pv.sessionId = s.id
+            WHERE s.projectId = :projectId
+            ORDER BY pv.createdAt DESC
+            """)
+    List<PageView> findRecentByProjectId(
+            @Param("projectId") Integer projectId,
+            Pageable pageable);
 }
