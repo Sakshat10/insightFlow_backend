@@ -30,55 +30,99 @@ public class SecurityConfig {
     private final UserDetailsService userDetailsService;
     private final JwtAuthEntryPoint jwtAuthEntryPoint;
 
-    public SecurityConfig(JwtAuthenticationFilter jwtAuthenticationFilter,
-                          UserDetailsService userDetailsService,
-                          JwtAuthEntryPoint jwtAuthEntryPoint) {
+    public SecurityConfig(
+            JwtAuthenticationFilter jwtAuthenticationFilter,
+            UserDetailsService userDetailsService,
+            JwtAuthEntryPoint jwtAuthEntryPoint
+    ) {
         this.jwtAuthenticationFilter = jwtAuthenticationFilter;
         this.userDetailsService = userDetailsService;
         this.jwtAuthEntryPoint = jwtAuthEntryPoint;
     }
 
-   @Bean
-public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
-    http
-        .cors(Customizer.withDefaults()) // <-- ADD THIS
-        .csrf(AbstractHttpConfigurer::disable)
-        .exceptionHandling(ex -> ex.authenticationEntryPoint(jwtAuthEntryPoint))
-        .authorizeHttpRequests(auth -> auth
-            .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll() // <-- ADD THIS
-            .requestMatchers("/auth/**").permitAll()
-            .requestMatchers(HttpMethod.GET, "/tracking/script", "/tracking/script/**").permitAll()
-            .requestMatchers(
-                    HttpMethod.POST,
-                    "/tracking/page-view",
-                    "/tracking/event",
-                    "/tracking/session-start",
-                    "/tracking/session-end"
-            ).permitAll()
-            .requestMatchers("/swagger-ui/**", "/v3/api-docs/**", "/swagger-ui.html").permitAll()
-            .requestMatchers("/users/**").hasAnyRole("USER", "ADMIN")
-            .requestMatchers("/admin/**").hasRole("ADMIN")
-            .anyRequest().authenticated()
-        )
-        .sessionManagement(session ->
-            session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
-        )
-        .authenticationProvider(authenticationProvider())
-        .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
+    @Bean
+    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
 
-    return http.build();
-}
+        http
+                .cors(Customizer.withDefaults())
+                .csrf(AbstractHttpConfigurer::disable)
 
+                .exceptionHandling(ex ->
+                        ex.authenticationEntryPoint(jwtAuthEntryPoint)
+                )
+
+                .authorizeHttpRequests(auth -> auth
+
+                        // Allow all preflight requests
+                        .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+
+                        // Public Authentication APIs
+                        .requestMatchers("/auth/**").permitAll()
+
+                        // Tracking Script
+                        .requestMatchers(
+                                HttpMethod.GET,
+                                "/tracking/script",
+                                "/tracking/script/**"
+                        ).permitAll()
+
+                        // Tracking APIs
+                        .requestMatchers(
+                                HttpMethod.POST,
+                                "/tracking/page-view",
+                                "/tracking/event",
+                                "/tracking/session-start",
+                                "/tracking/session-end"
+                        ).permitAll()
+
+                        // Swagger
+                        .requestMatchers(
+                                "/swagger-ui/**",
+                                "/swagger-ui.html",
+                                "/v3/api-docs/**"
+                        ).permitAll()
+
+                        // Protected APIs
+                        .requestMatchers("/users/**")
+                        .hasAnyRole("USER", "ADMIN")
+
+                        .requestMatchers("/admin/**")
+                        .hasRole("ADMIN")
+
+                        .anyRequest()
+                        .authenticated()
+                )
+
+                .sessionManagement(session ->
+                        session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
+                )
+
+                .authenticationProvider(authenticationProvider())
+
+                .addFilterBefore(
+                        jwtAuthenticationFilter,
+                        UsernamePasswordAuthenticationFilter.class
+                );
+
+        return http.build();
+    }
     @Bean
     public AuthenticationProvider authenticationProvider() {
-        DaoAuthenticationProvider provider = new DaoAuthenticationProvider(passwordEncoder());
+
+        DaoAuthenticationProvider provider =
+                new DaoAuthenticationProvider(passwordEncoder());
+
         provider.setUserDetailsService(userDetailsService);
+
         return provider;
     }
 
     @Bean
-    public AuthenticationManager authenticationManager(AuthenticationConfiguration config) throws Exception {
-        return config.getAuthenticationManager();
+    public AuthenticationManager authenticationManager(
+            AuthenticationConfiguration configuration
+    ) throws Exception {
+
+        return configuration.getAuthenticationManager();
     }
 
     @Bean
