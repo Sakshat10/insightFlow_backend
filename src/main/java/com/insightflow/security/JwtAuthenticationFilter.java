@@ -56,7 +56,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             username = jwtUtil.extractUsername(jwt);
         } catch (Exception e) {
             log.warn("Failed to extract username from JWT: {}", e.getMessage());
-            sendErrorResponse(response, "Invalid or malformed JWT token");
+            filterChain.doFilter(request, response);
             return;
         }
 
