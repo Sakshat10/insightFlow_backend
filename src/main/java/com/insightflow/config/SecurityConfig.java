@@ -82,6 +82,12 @@ public class SecurityConfig {
                         .permitAll()
 
                         /*
+                         * Public health check endpoint.
+                         */
+                        .requestMatchers(HttpMethod.GET, "/health")
+                        .permitAll()
+
+                        /*
                          * Public tracking script endpoint.
                          */
                         .requestMatchers(
